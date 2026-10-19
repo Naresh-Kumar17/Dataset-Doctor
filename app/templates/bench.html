@@ -1,0 +1,86 @@
+{% extends "shell.html" %}
+
+{% block title %}Test Bench — Dataset Doctor{% endblock %}
+
+{% block main_content %}
+<div>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+      <h2 style="margin: 0;">AUTOMATED TEST BENCH</h2>
+      <p style="margin: 4px 0 0; color: #555; font-size: 15px;">
+        Empirical regression gates running against planted-truth datasets with known answers.
+      </p>
+    </div>
+    <form action="/bench/run/all" method="post">
+      <button type="submit" class="btn">RUN ALL GATES</button>
+    </form>
+  </div>
+
+  <!-- Modules Gate Status Table -->
+  <div class="card">
+    <h3 class="card-title">MODULE GATES</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Module</th>
+            <th>Description</th>
+            <th>Status</th>
+            <th>Planted / Found</th>
+            <th>Missed / False</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for mod in modules %}
+            <tr>
+              <td><strong>Phase {{ mod.phase }}</strong></td>
+              <td><strong>{{ mod.name }}</strong></td>
+              <td style="font-family: inherit; font-size: 13px; color: #444;">{{ mod.description }}</td>
+              <td>
+                {% if mod.status == 'gate_passed' %}
+                  <span class="chip pass">GATE PASSED</span>
+                {% elif mod.status == 'built' %}
+                  <span class="chip built">BUILT</span>
+                {% elif mod.status == 'gate_failed' %}
+                  <span class="chip fail">FAILED</span>
+                {% else %}
+                  <span class="chip notbuilt">NOT BUILT</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if mod.gate_details %}
+                  {{ mod.gate_details.planted }} / {{ mod.gate_details.found }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>
+                {% if mod.gate_details %}
+                  {{ mod.gate_details.missed }} / {{ mod.gate_details.false_alarms }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>
+                <form action="/bench/run/{{ mod.id }}" method="post" style="margin: 0;">
+                  <button type="submit" class="btn secondary" style="padding: 4px 10px; min-height: 32px; font-size: 12px;">
+                    RUN GATE
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Gate Log View -->
+  <div class="card">
+    <h3 class="card-title">GATE LOG HISTORY (docs/gate_log.md)</h3>
+    <pre style="background: #FFF8E7; border: 2px solid var(--ink); padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px; overflow-x: auto; margin: 0; line-height: 1.6;">{{ gate_log_content }}</pre>
+  </div>
+</div>
+{% endblock %}

@@ -5,6 +5,6 @@ client = TestClient(app)
 
 
 def test_hello_route():
-    response = client.get("/")
+    response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "Dataset Doctor is running"}

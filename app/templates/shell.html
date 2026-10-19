@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="layout">
+  <!-- Left Sidebar with Module Registry -->
+  <aside class="sidebar">
+    <div class="sidebar-title">NAVIGATION</div>
+    
+    <a href="/profile" class="module-nav-item {% if current_page == 'profile' %}active{% endif %}">
+      <span>1. Profile</span>
+      <span class="chip built">READY</span>
+    </a>
+
+    <div class="sidebar-title" style="margin-top: 12px;">DIAGNOSTIC MODULES</div>
+    {% for mod in modules %}
+      <a href="/module/{{ mod.id }}" class="module-nav-item {% if current_page == mod.id %}active{% endif %}">
+        <span style="font-size: 14px;">{{ mod.name }}</span>
+        {% if mod.status == 'gate_passed' %}
+          <span class="chip pass">PASSED</span>
+        {% elif mod.status == 'built' %}
+          <span class="chip built">BUILT</span>
+        {% elif mod.status == 'gate_failed' %}
+          <span class="chip fail">FAILED</span>
+        {% else %}
+          <span class="chip notbuilt">NOT BUILT</span>
+        {% endif %}
+      </a>
+    {% endfor %}
+
+    <div class="sidebar-title" style="margin-top: 12px;">VALIDATION</div>
+    <a href="/bench" class="module-nav-item {% if current_page == 'bench' %}active{% endif %}">
+      <span>Test Bench</span>
+      <span class="chip pass">GATES</span>
+    </a>
+  </aside>
+
+  <!-- Main Content Area -->
+  <section class="main-content">
+    {% block main_content %}{% endblock %}
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Dataset Doctor{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="brand-title">Dataset Doctor</a>
+      {% if active_filename %}
+        <span class="file-badge">FILE: {{ active_filename }}</span>
+      {% endif %}
+    </div>
+    <div class="nav-actions">
+      {% if active_filename %}
+        <a href="/profile" class="btn secondary" style="padding: 6px 14px; min-height: 36px; font-size: 13px;">Overview</a>
+      {% endif %}
+      <a href="/bench" class="btn secondary" style="padding: 6px 14px; min-height: 36px; font-size: 13px;">Test Bench</a>
+      {% if active_filename %}
+        <a href="/" class="btn danger" style="padding: 6px 14px; min-height: 36px; font-size: 13px;">New File</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

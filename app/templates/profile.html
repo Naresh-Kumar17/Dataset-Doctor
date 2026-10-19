@@ -1,0 +1,141 @@
+{% extends "shell.html" %}
+
+{% block title %}Dataset Profile — Dataset Doctor{% endblock %}
+
+{% block main_content %}
+<div>
+  <h2>DATASET PROFILE & OVERVIEW</h2>
+
+  {% if target_locked %}
+    <div class="banner success">
+      TARGET LOCKED: <strong>{{ target_column }}</strong> (Task: <strong>{{ task_type }}</strong>)
+    </div>
+  {% endif %}
+
+  <!-- 4 Stat Cards -->
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-label">TOTAL ROWS</div>
+      <div class="stat-val">{{ profile.n_rows }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">TOTAL COLUMNS</div>
+      <div class="stat-val">{{ profile.n_columns }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">MEMORY USAGE</div>
+      <div class="stat-val">{{ profile.memory_display }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">COLS WITH MISSING</div>
+      <div class="stat-val">{{ profile.columns_with_missing }}</div>
+    </div>
+  </div>
+
+  <!-- Target Column Selection Card -->
+  <div class="card">
+    <h3 class="card-title">TARGET CONFIGURATION</h3>
+    <form action="/target" method="post">
+      <div class="target-config-grid">
+        <div class="form-group" style="margin-bottom: 0;">
+
+          <label class="form-label" for="target_column">Select Target Column</label>
+          <select class="form-select" id="target_column" name="target_column">
+            {% for col in profile.columns %}
+              <option value="{{ col.name }}" {% if (target_column or profile.suggested_target) == col.name %}selected{% endif %}>
+                {{ col.name }} ({{ col.inferred_type }}, {{ col.unique_count }} distinct)
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">Task Type</label>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="task_type" value="classification" {% if (task_type or profile.suggested_task_type) == 'classification' %}checked{% endif %}>
+              Classification
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="task_type" value="regression" {% if (task_type or profile.suggested_task_type) == 'regression' %}checked{% endif %}>
+              Regression
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <button type="submit" class="btn">LOCK TARGET</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Column Details Table -->
+  <div class="card">
+    <h3 class="card-title">COLUMN SUMMARY ({{ profile.n_columns }} COLUMNS)</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Column Name</th>
+            <th>Pandas Dtype</th>
+            <th>Inferred Type</th>
+            <th>Distinct</th>
+            <th>Missing Cells</th>
+            <th>Sample Values</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for col in profile.columns %}
+            <tr>
+              <td><strong>{{ col.name }}</strong></td>
+              <td>{{ col.dtype }}</td>
+              <td>
+                <span class="chip {% if col.inferred_type == 'numeric' %}low{% elif col.inferred_type == 'categorical' %}reco{% elif col.inferred_type == 'boolean' %}pass{% else %}built{% endif %}">
+                  {{ col.inferred_type }}
+                </span>
+              </td>
+              <td>{{ col.unique_count }}</td>
+              <td>
+                {% if col.null_count > 0 %}
+                  <span style="color: #c92a2a; font-weight: 700;">{{ col.null_count }} ({{ col.null_percent }}%)</span>
+                {% else %}
+                  0
+                {% endif %}
+              </td>
+              <td style="color: #555;">{{ col.sample_values | join(", ") }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Data Preview Table (First 10 Rows) -->
+  <div class="card">
+    <h3 class="card-title">DATA PREVIEW (FIRST 10 ROWS)</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            {% for col in profile.preview_columns %}
+              <th>{{ col }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in profile.preview_rows %}
+            <tr>
+              <td style="color: #888;">{{ loop.index }}</td>
+              {% for col in profile.preview_columns %}
+                <td>{{ row[col] }}</td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
