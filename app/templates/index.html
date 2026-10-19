@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Upload CSV — Dataset Doctor{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 40px auto;">
+  <div style="text-align: center; margin-bottom: 32px;">
+    <h1>DATASET DOCTOR</h1>
+    <p style="font-size: 20px; font-weight: 700; text-transform: uppercase; margin: 0 0 8px;">
+      Find the data problems. Test the fix. You decide.
+    </p>
+    <p style="color: #444; margin: 0;">
+      A leak-proof diagnostic tool that measures real machine learning impact on an untouched test set.
+    </p>
+  </div>
+
+  {% if error %}
+    <div class="banner danger">
+      <strong>ERROR:</strong> {{ error }}
+    </div>
+  {% endif %}
+
+  <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+    <div class="dropzone-box" id="dropzone" onclick="document.getElementById('fileInput').click()">
+      <div class="dropzone-icon">&#128196;</div>
+      <div style="font-size: 24px; margin-bottom: 8px;">DROP CSV HERE OR CLICK TO BROWSE</div>
+      <div style="font-size: 14px; color: #333;">Supports comma, semicolon, tab delimiters, and Latin-1 / UTF-8 encodings</div>
+      <input type="file" id="fileInput" name="file" accept=".csv" style="display: none;" onchange="document.getElementById('uploadForm').submit()">
+    </div>
+  </form>
+
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 13px; font-weight: 700; text-transform: uppercase;">
+    <span>Max file size: 50 MB</span>
+    <span>In-memory sessions &bull; Auto-deleted after 1 hour</span>
+  </div>
+</div>
+
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropzone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    }, false);
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropzone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+    }, false);
+  });
+
+  dropzone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    if (files.length > 0) {
+      fileInput.files = files;
+      document.getElementById('uploadForm').submit();
+    }
+  });
+</script>
+{% endblock %}

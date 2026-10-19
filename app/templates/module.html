@@ -1,0 +1,36 @@
+{% extends "shell.html" %}
+
+{% block title %}{{ module.name }} — Dataset Doctor{% endblock %}
+
+{% block main_content %}
+<div>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+      <h2 style="margin: 0;">{{ module.name }}</h2>
+      <p style="margin: 4px 0 0; color: #555; font-size: 15px;">{{ module.description }}</p>
+    </div>
+    <div>
+      {% if module.status == 'gate_passed' %}
+        <span class="chip pass">GATE PASSED</span>
+      {% elif module.status == 'built' %}
+        <span class="chip built">BUILT</span>
+      {% else %}
+        <span class="chip notbuilt">PHASE {{ module.phase }}: NOT BUILT</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">MODULE STATUS</h3>
+    <div style="padding: 16px 0;">
+      <p style="font-size: 16px; margin-bottom: 16px;">
+        This diagnostic module is scheduled for development in <strong>Phase {{ module.phase }}</strong>.
+      </p>
+      <div class="banner info" style="margin-bottom: 16px;">
+        Following the phased-gate engineering discipline, each diagnostic module is built, tested with planted-problem truth data, and validated through its automated gate before activation.
+      </div>
+      <a href="/profile" class="btn secondary">Back to Dataset Profile</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

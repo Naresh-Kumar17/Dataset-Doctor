@@ -56,7 +56,7 @@ Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 | Phase | What | Gate passed | Date |
 |-------|------|-------------|------|
 | 0 | Setup + accident redo (evidence) | [x] PASS | 2026-10-19 |
-| 1 | GUI shell + loader + profile (test bench) | [ ] | |
+| 1 | GUI shell + loader + profile (test bench) | [x] PASS | 2026-10-19 |
 | 2 | Null detection | [ ] | |
 | 3 | Split + evaluation engine | [ ] | |
 | 4 | Null advisor + fixer (interactive) | [ ] | |
