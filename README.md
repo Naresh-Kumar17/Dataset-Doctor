@@ -55,7 +55,7 @@ Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 ## Phase tracker
 | Phase | What | Gate passed | Date |
 |-------|------|-------------|------|
-| 0 | Setup + accident redo (evidence) | [ ] | |
+| 0 | Setup + accident redo (evidence) | [x] PASS | 2026-10-19 |
 | 1 | GUI shell + loader + profile (test bench) | [ ] | |
 | 2 | Null detection | [ ] | |
 | 3 | Split + evaluation engine | [ ] | |
@@ -71,10 +71,16 @@ Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 ## Evidence from the accident dataset (fill after Phase 0)
 | Setup | Accuracy | Severe recall | Severe F1 |
 |-------|----------|---------------|-----------|
-| Oversample before split (old, wrong) | | | |
-| Split first, no fix | | | |
-| Split first, class weights | | | |
-| Split first, oversample train only | | | |
+| Oversample before split (old, wrong) | 0.9574 | 0.9941 | 0.9589 |
+| Split first, no fix | 0.8700 | 0.2167 | 0.3333 |
+| Split first, class weights | 0.8375 | 0.4000 | 0.4248 |
+| Split first, oversample train only | 0.8500 | 0.3167 | 0.3878 |
+
+**Why the old score was inflated:**
+1. Oversampling before splitting cloned synthetic/duplicated minority rows into both training and test sets.
+2. The model achieved near-perfect test recall (99.4%) by memorizing duplicate training instances that leaked into the test set.
+3. Splitting first preserves an unpolluted 85/15 test distribution, revealing honest real-world generalization (21.7% baseline recall, improved honestly to 40.0% with class weights).
+
 
 ## Tech stack
 - Python 3.11+
@@ -101,6 +107,7 @@ Full steps: [SETUP.md](SETUP.md)
 - [IMPLEMENTATION.md](IMPLEMENTATION.md): how it is built, phases and gates
 - [SETUP.md](SETUP.md): install, run, test, planted data, deploy
 - [DESIGN.md](DESIGN.md): neo-brutalist GUI spec, decision card, test bench
+- [GITHUB_INSTRUCTIONS.md](GITHUB_INSTRUCTIONS.md): git branching, phase completion, and PR rules
 
 ## Project structure
 ```
