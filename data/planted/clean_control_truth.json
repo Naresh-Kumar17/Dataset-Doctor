@@ -1,0 +1,16 @@
+{
+  "dataset": "clean_control",
+  "rows": 500,
+  "expected_certain_issues": 0,
+  "must_not_flag_certain": [
+    "country",
+    "id",
+    "customer_name",
+    "age",
+    "balance_change",
+    "target"
+  ],
+  "allowed_possible": [
+    "country"
+  ]
+}

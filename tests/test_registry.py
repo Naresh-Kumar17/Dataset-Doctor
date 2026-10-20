@@ -12,9 +12,13 @@ def test_registry_lists_all_planned_modules():
     for exp in expected:
         assert exp in module_ids
 
-    # In Phase 1, all modules are registered as 'not_built'
+    # In Phase 2, nulls is gate_passed/built, while later phase modules remain not_built
     for m in modules:
-        assert m.status == "not_built"
+        if m.id == "nulls":
+            assert m.status in ["built", "gate_passed"]
+        else:
+            assert m.status == "not_built"
+
 
 
 def test_get_specific_module():

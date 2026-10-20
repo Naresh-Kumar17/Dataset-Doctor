@@ -57,8 +57,9 @@ Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 |-------|------|-------------|------|
 | 0 | Setup + accident redo (evidence) | [x] PASS | 2026-10-19 |
 | 1 | GUI shell + loader + profile (test bench) | [x] PASS | 2026-10-19 |
-| 2 | Null detection | [ ] | |
+| 2 | Null detection | [x] PASS | 2026-10-21 |
 | 3 | Split + evaluation engine | [ ] | |
+
 | 4 | Null advisor + fixer (interactive) | [ ] | |
 | 5 | Duplicates | [ ] | |
 | 6 | Data types | [ ] | |

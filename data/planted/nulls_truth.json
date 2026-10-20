@@ -1,0 +1,46 @@
+{
+  "module": "nulls",
+  "rows": 1000,
+  "planted": [
+    {
+      "column": "age",
+      "kind": "nan",
+      "count": 50
+    },
+    {
+      "column": "phone",
+      "kind": "hidden_token",
+      "token": "N/A",
+      "count": 60
+    },
+    {
+      "column": "score",
+      "kind": "sentinel",
+      "token": "-999",
+      "count": 40
+    },
+    {
+      "column": "notes",
+      "kind": "nan",
+      "count": 700,
+      "expected_severity": "high"
+    },
+    {
+      "column": "income",
+      "kind": "target_related_missingness",
+      "expect_pattern": true
+    },
+    {
+      "column": "noise_col",
+      "kind": "random_missingness",
+      "expect_pattern": false
+    }
+  ],
+  "must_not_flag": [
+    "id",
+    "country"
+  ],
+  "allowed_possible": [
+    "country"
+  ]
+}

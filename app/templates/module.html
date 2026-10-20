@@ -4,33 +4,170 @@
 
 {% block main_content %}
 <div>
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+  <!-- Header Bar -->
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
     <div>
       <h2 style="margin: 0;">{{ module.name }}</h2>
-      <p style="margin: 4px 0 0; color: #555; font-size: 15px;">{{ module.description }}</p>
+      <p style="margin: 4px 0 0; color: #444; font-size: 15px;">{{ module.description }}</p>
     </div>
-    <div>
+    <div style="display: flex; align-items: center; gap: 12px;">
       {% if module.status == 'gate_passed' %}
-        <span class="chip pass">GATE PASSED</span>
+        <span class="chip pass" style="font-size: 13px; padding: 6px 12px;">Phase 2: GATE PASSED</span>
       {% elif module.status == 'built' %}
-        <span class="chip built">BUILT</span>
+
+
+        <span class="chip built" style="font-size: 13px; padding: 6px 12px;">BUILT</span>
       {% else %}
-        <span class="chip notbuilt">PHASE {{ module.phase }}: NOT BUILT</span>
+        <span class="chip notbuilt" style="font-size: 13px; padding: 6px 12px;">PHASE {{ module.phase }}: NOT BUILT</span>
+      {% endif %}
+
+      {% if module.id == 'nulls' %}
+        <a href="/module/nulls" class="btn primary" style="min-height: 40px; padding: 8px 18px; font-size: 13px;">RUN DETECT</a>
       {% endif %}
     </div>
   </div>
 
-  <div class="card">
-    <h3 class="card-title">MODULE STATUS</h3>
-    <div style="padding: 16px 0;">
-      <p style="font-size: 16px; margin-bottom: 16px;">
-        This diagnostic module is scheduled for development in <strong>Phase {{ module.phase }}</strong>.
-      </p>
-      <div class="banner info" style="margin-bottom: 16px;">
-        Following the phased-gate engineering discipline, each diagnostic module is built, tested with planted-problem truth data, and validated through its automated gate before activation.
+  {% if module.id == 'nulls' %}
+    <!-- Summary Strip -->
+    <div class="stat-grid" style="margin-bottom: 24px;">
+      <div class="stat-card" style="border-left: 6px solid var(--pink);">
+        <div class="stat-label">HIGH SEVERITY</div>
+        <div class="stat-val" style="color: #b00020;">{{ summary_counts.high }}</div>
+        <div style="font-size: 12px; color: #555; margin-top: 4px;">Target / &gt;60% missing</div>
       </div>
-      <a href="/profile" class="btn secondary">Back to Dataset Profile</a>
+
+      <div class="stat-card" style="border-left: 6px solid var(--orange);">
+        <div class="stat-label">MEDIUM SEVERITY</div>
+        <div class="stat-val" style="color: #c46800;">{{ summary_counts.medium }}</div>
+        <div style="font-size: 12px; color: #555; margin-top: 4px;">5% to 60% missing</div>
+      </div>
+
+      <div class="stat-card" style="border-left: 6px solid var(--blue);">
+        <div class="stat-label">LOW SEVERITY</div>
+        <div class="stat-val" style="color: #0056b3;">{{ summary_counts.low }}</div>
+        <div style="font-size: 12px; color: #555; margin-top: 4px;">&lt;5% missing</div>
+      </div>
+
+      <div class="stat-card" style="border-left: 6px solid var(--ink);">
+        <div class="stat-label">ROW-LOSS IMPACT</div>
+        {% if row_loss %}
+          <div class="stat-val">{{ row_loss.rows_lost }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">
+            {{ row_loss.rows_lost_pct }}% dropped if removed
+          </div>
+        {% else %}
+          <div class="stat-val">0</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">0 rows dropped</div>
+        {% endif %}
+      </div>
     </div>
-  </div>
+
+    <!-- Row-loss Breakdown Banner -->
+    {% if row_loss and row_loss.rows_lost > 0 %}
+      <div class="banner warning" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <strong>ROW-LEVEL IMPACT:</strong> Dropping all rows with nulls would discard 
+            <strong>{{ row_loss.rows_lost }}</strong> rows ({{ row_loss.rows_lost_pct }}%), 
+            retaining <strong>{{ row_loss.rows_kept_if_dropped }}</strong> rows.
+          </div>
+          <div style="font-size: 13px; font-family: monospace;">
+            1 null: {{ row_loss.row_counts_by_missing['1'] }} rows | 
+            2 nulls: {{ row_loss.row_counts_by_missing['2'] }} | 
+            3+ nulls: {{ row_loss.row_counts_by_missing['3+'] }}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- Issues Table -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 class="card-title" style="margin: 0;">DETECTED ISSUES ({{ issues|length }})</h3>
+        {% if active_filename %}
+          <span style="font-size: 13px; color: #555;">Active Source: <strong>{{ active_filename }}</strong></span>
+        {% endif %}
+      </div>
+
+      {% if issues %}
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="min-width: 140px;">COLUMN</th>
+                <th style="min-width: 260px;">WHAT WE FOUND</th>
+                <th style="min-width: 180px;">EVIDENCE BREAKDOWN</th>
+                <th style="min-width: 100px;">SEVERITY</th>
+                <th style="min-width: 110px;">CERTAINTY</th>
+                <th style="min-width: 130px;">INTERACTIVE ACTION</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for iss in issues %}
+                <tr>
+                  <td>
+                    <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 14px;">
+                      {{ iss.column }}
+                    </span>
+                    {% if iss.evidence.is_target %}
+                      <span class="chip high" style="font-size: 10px; margin-left: 6px;">TARGET</span>
+                    {% endif %}
+                  </td>
+                  <td style="font-size: 14px; line-height: 1.4;">
+                    {{ iss.description }}
+                  </td>
+                  <td>
+                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; background: #eee; padding: 4px 8px; border: 1px solid #ccc; display: inline-block;">
+                      {{ format_badge(iss.evidence) }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if iss.severity == 'high' %}
+                      <span class="chip high">HIGH</span>
+                    {% elif iss.severity == 'medium' %}
+                      <span class="chip medium">MEDIUM</span>
+                    {% else %}
+                      <span class="chip low">LOW</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if iss.certainty == 'certain' %}
+                      <span class="chip" style="background: #ffffff; border: 2px solid #000;">CERTAIN</span>
+                    {% else %}
+                      <span class="chip" style="background: var(--yellow); border: 2px solid #000;">POSSIBLE</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <button class="btn secondary" style="padding: 4px 10px; font-size: 12px;" disabled title="Interactive advisor will be activated in Phase 4">
+                      OPEN DECISION
+                    </button>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="banner success" style="margin: 0;">
+          <strong>NO ISSUES FOUND</strong> — Every column is complete and free of missing values, hidden string tokens, and sentinel numbers.
+        </div>
+      {% endif %}
+    </div>
+
+  {% else %}
+    <!-- Module Not Built Placeholder for future phases -->
+    <div class="card">
+      <h3 class="card-title">MODULE STATUS</h3>
+      <div style="padding: 16px 0;">
+        <p style="font-size: 16px; margin-bottom: 16px;">
+          This diagnostic module is scheduled for development in <strong>Phase {{ module.phase }}</strong>.
+        </p>
+        <div class="banner info" style="margin-bottom: 16px;">
+          Following the phased-gate engineering discipline, each diagnostic module is built, tested with planted-problem truth data, and validated through its automated gate before activation.
+        </div>
+        <a href="/profile" class="btn secondary">Back to Dataset Profile</a>
+      </div>
+    </div>
+  {% endif %}
 </div>
 {% endblock %}
