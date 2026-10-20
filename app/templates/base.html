@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
   <title>{% block title %}Dataset Doctor{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -15,12 +17,16 @@
       {% endif %}
     </div>
     <div class="nav-actions">
-      {% if active_filename %}
-        <a href="/profile" class="btn secondary" style="padding: 6px 14px; min-height: 36px; font-size: 13px;">Overview</a>
-      {% endif %}
-      <a href="/bench" class="btn secondary" style="padding: 6px 14px; min-height: 36px; font-size: 13px;">Test Bench</a>
-      {% if active_filename %}
-        <a href="/" class="btn danger" style="padding: 6px 14px; min-height: 36px; font-size: 13px;">New File</a>
+      {% if request.state.is_authenticated %}
+        {% if active_filename %}
+          <a href="/profile" class="btn secondary" style="padding: 6px 14px; min-height: 36px; font-size: 13px;">Overview</a>
+        {% endif %}
+        <a href="/bench" class="btn secondary" style="padding: 6px 14px; min-height: 36px; font-size: 13px;">Test Bench</a>
+        {% if active_filename %}
+          <a href="/" class="btn danger" style="padding: 6px 14px; min-height: 36px; font-size: 13px;">New File</a>
+        {% endif %}
+        <span class="chip pass" style="font-size: 11px; padding: 4px 8px;" title="Authenticated Project Member">&#128274; nareshkumar2501</span>
+        <a href="/logout" class="btn secondary" style="padding: 6px 12px; min-height: 36px; font-size: 13px;" title="Log out">Logout</a>
       {% endif %}
     </div>
   </header>

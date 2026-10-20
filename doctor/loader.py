@@ -4,11 +4,14 @@ Handles encoding detection, 50MB file size limits, keep_default_na=False,
 and returns clear, user-friendly errors on invalid or malformed files.
 """
 from io import BytesIO, StringIO
+import os
 from typing import BinaryIO, Tuple
 import chardet
 import pandas as pd
 
-MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
+DEFAULT_MAX_FILE_SIZE_MB = 50
+MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", str(DEFAULT_MAX_FILE_SIZE_MB)))
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024  # Default 50 MB
 
 
 class LoaderError(Exception):

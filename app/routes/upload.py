@@ -1,20 +1,37 @@
 """
 Upload and Profile routes for Dataset Doctor.
 Handles file ingestion, validation, session registration, profile generation,
-and target column specification.
+and target column specification. Hardened with sanitization, rate limiting,
+and support for real-time GUI upload progress tracking.
 """
 from pathlib import Path
 from fastapi import APIRouter, File, Form, Request, Response, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from doctor.loader import LoaderError, load_csv
+from doctor.loader import LoaderError, load_csv, MAX_FILE_SIZE_MB
 from doctor.profile import profile_dataframe
 from doctor.registry import get_all_modules
 from app.session import create_session, get_session
+from app.security import sanitize_filename, sanitize_text_input, rate_limiter
+from app.config import RATE_LIMIT_UPLOAD
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+
+
+def get_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def is_xhr(request: Request) -> bool:
+    return (
+        request.headers.get("x-requested-with") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("accept", "")
+    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -28,14 +45,34 @@ def get_upload_page(request: Request):
         context={
             "active_filename": active_filename,
             "error": None,
+            "max_file_size_mb": MAX_FILE_SIZE_MB,
         }
     )
 
 
-@router.post("/upload", response_class=HTMLResponse)
+@router.post("/upload")
 async def post_upload_file(request: Request, file: UploadFile = File(...)):
+    # 1. IP Rate Limiting check
+    client_ip = get_client_ip(request)
+    allowed, retry_after = rate_limiter.is_allowed(f"upload:{client_ip}", RATE_LIMIT_UPLOAD, 60)
+    if not allowed:
+        err_msg = f"Upload rate limit exceeded. Please wait {retry_after} seconds before uploading another file."
+        if is_xhr(request):
+            return JSONResponse(status_code=429, content={"status": "error", "message": err_msg})
+        return templates.TemplateResponse(
+            request=request,
+            name="index.html",
+            context={
+                "active_filename": None,
+                "error": err_msg,
+                "max_file_size_mb": MAX_FILE_SIZE_MB,
+            },
+            status_code=429,
+        )
+
+    # 2. Filename Sanitization against path traversal
+    filename = sanitize_filename(file.filename or "dataset.csv")
     raw_bytes = await file.read()
-    filename = file.filename or "dataset.csv"
 
     try:
         df, metadata = load_csv(raw_bytes, filename=filename)
@@ -44,27 +81,34 @@ async def post_upload_file(request: Request, file: UploadFile = File(...)):
         session_id = request.cookies.get("session_id")
         session = get_session(session_id)
         active_filename = session.metadata.get("filename") if session and session.metadata else None
+        if is_xhr(request):
+            return JSONResponse(status_code=400, content={"status": "error", "message": str(e)})
         return templates.TemplateResponse(
             request=request,
             name="index.html",
             context={
                 "active_filename": active_filename,
                 "error": str(e),
+                "max_file_size_mb": MAX_FILE_SIZE_MB,
             },
             status_code=400,
         )
     except Exception as e:
+        err_str = f"Unexpected error reading file: {e}"
+        if is_xhr(request):
+            return JSONResponse(status_code=400, content={"status": "error", "message": err_str})
         return templates.TemplateResponse(
             request=request,
             name="index.html",
             context={
                 "active_filename": None,
-                "error": f"Unexpected error reading file: {e}",
+                "error": err_str,
+                "max_file_size_mb": MAX_FILE_SIZE_MB,
             },
             status_code=400,
         )
 
-    # Create new session
+    # 3. Create new session
     session = create_session()
     session.df = df
     session.metadata = metadata
@@ -72,7 +116,15 @@ async def post_upload_file(request: Request, file: UploadFile = File(...)):
     session.target_column = profile.get("suggested_target")
     session.task_type = profile.get("suggested_task_type")
 
-    response = RedirectResponse(url="/profile", status_code=303)
+    # If client requested JSON (e.g. XHR loader), return JSON with redirect URL
+    if is_xhr(request):
+        response = JSONResponse(
+            status_code=200,
+            content={"status": "success", "redirect": "/profile"}
+        )
+    else:
+        response = RedirectResponse(url="/profile", status_code=303)
+
     response.set_cookie(
         key="session_id",
         value=session.session_id,
@@ -115,10 +167,21 @@ def post_lock_target(
     session_id = request.cookies.get("session_id")
     session = get_session(session_id)
 
-    if not session:
+    if not session or session.df is None:
         return RedirectResponse(url="/", status_code=303)
 
-    session.target_column = target_column
-    session.task_type = task_type
+    # Sanitize and validate inputs
+    clean_target = sanitize_text_input(target_column, 120)
+    clean_task = sanitize_text_input(task_type, 30).lower()
+
+    if clean_target not in session.df.columns:
+        # Invalid column choice
+        return RedirectResponse(url="/profile", status_code=303)
+
+    if clean_task not in ("classification", "regression"):
+        clean_task = "classification"
+
+    session.target_column = clean_target
+    session.task_type = clean_task
 
     return RedirectResponse(url="/profile?locked=1", status_code=303)

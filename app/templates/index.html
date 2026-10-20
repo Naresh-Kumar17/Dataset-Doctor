@@ -14,23 +14,79 @@
     </p>
   </div>
 
-  {% if error %}
-    <div class="banner danger">
-      <strong>ERROR:</strong> {{ error }}
-    </div>
-  {% endif %}
+  <div id="errorBanner" class="banner danger" style="{% if not error %}display: none;{% endif %}">
+    <strong>ERROR:</strong> <span id="errorMessage">{{ error or '' }}</span>
+  </div>
 
+  <!-- Standard Upload Form with Drag and Drop -->
   <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
     <div class="dropzone-box" id="dropzone" onclick="document.getElementById('fileInput').click()">
       <div class="dropzone-icon">&#128196;</div>
       <div style="font-size: 24px; margin-bottom: 8px;">DROP CSV HERE OR CLICK TO BROWSE</div>
       <div style="font-size: 14px; color: #333;">Supports comma, semicolon, tab delimiters, and Latin-1 / UTF-8 encodings</div>
-      <input type="file" id="fileInput" name="file" accept=".csv" style="display: none;" onchange="document.getElementById('uploadForm').submit()">
+      <input type="file" id="fileInput" name="file" accept=".csv" style="display: none;">
     </div>
   </form>
 
+  <!-- Real-Time Upload Progress & Metrics Loader -->
+  <div id="uploadLoader" class="upload-loader-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 22px;">&#128190;</span>
+        <div>
+          <div id="loaderFilename" style="font-weight: 700; font-size: 16px; word-break: break-all;">dataset.csv</div>
+          <div id="loaderTotalSize" style="font-size: 12px; color: #666; font-family: 'JetBrains Mono', monospace;">0.0 MB</div>
+        </div>
+      </div>
+      <div id="loaderStatusBadge" class="chip built pulse-badge">
+        <span class="pulse-dot"></span>
+        <span id="loaderStatusText">UPLOADING...</span>
+      </div>
+    </div>
+
+    <!-- Progress Track -->
+    <div class="progress-track">
+      <div id="progressFill" class="progress-fill"></div>
+    </div>
+
+    <!-- Real-time metrics breakdown -->
+    <div class="upload-metrics-grid">
+      <div class="upload-metric-box">
+        <div class="metric-title">UPLOADED</div>
+        <div id="metricUploaded" class="metric-number">0.0 MB</div>
+      </div>
+      <div class="upload-metric-box">
+        <div class="metric-title">REMAINING</div>
+        <div id="metricRemaining" class="metric-number">0.0 MB left</div>
+      </div>
+      <div class="upload-metric-box">
+        <div class="metric-title">PROGRESS</div>
+        <div id="metricPercent" class="metric-number">0%</div>
+      </div>
+      <div class="upload-metric-box">
+        <div class="metric-title">TRANSFER SPEED</div>
+        <div id="metricSpeed" class="metric-number">-- MB/s</div>
+      </div>
+      <div class="upload-metric-box">
+        <div class="metric-title">ESTIMATED TIME</div>
+        <div id="metricEta" class="metric-number">--</div>
+      </div>
+    </div>
+
+    <!-- Active Stage Description -->
+    <div id="loaderStageMsg" style="margin-top: 14px; font-size: 12px; color: #555; font-style: italic;">
+      Sending file payload to server in chunks...
+    </div>
+
+    <div style="margin-top: 14px; text-align: right;">
+      <button type="button" id="cancelUploadBtn" class="btn danger" style="padding: 4px 12px; min-height: 30px; font-size: 12px;">
+        Cancel Upload
+      </button>
+    </div>
+  </div>
+
   <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 13px; font-weight: 700; text-transform: uppercase;">
-    <span>Max file size: 50 MB</span>
+    <span>Max file size: {{ max_file_size_mb or 50 }} MB</span>
     <span>In-memory sessions &bull; Auto-deleted after 1 hour</span>
   </div>
 </div>
@@ -38,7 +94,190 @@
 <script>
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
+  const uploadLoader = document.getElementById('uploadLoader');
+  const progressFill = document.getElementById('progressFill');
+  const loaderFilename = document.getElementById('loaderFilename');
+  const loaderTotalSize = document.getElementById('loaderTotalSize');
+  const loaderStatusBadge = document.getElementById('loaderStatusBadge');
+  const loaderStatusText = document.getElementById('loaderStatusText');
+  const loaderStageMsg = document.getElementById('loaderStageMsg');
+  const errorBanner = document.getElementById('errorBanner');
+  const errorMessage = document.getElementById('errorMessage');
+  const cancelUploadBtn = document.getElementById('cancelUploadBtn');
 
+  const metricUploaded = document.getElementById('metricUploaded');
+  const metricRemaining = document.getElementById('metricRemaining');
+  const metricPercent = document.getElementById('metricPercent');
+  const metricSpeed = document.getElementById('metricSpeed');
+  const metricEta = document.getElementById('metricEta');
+
+  const MAX_FILE_SIZE_MB = {{ max_file_size_mb or 50 }};
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+  let activeXhr = null;
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0.0 MB';
+    const mb = bytes / (1024 * 1024);
+    if (mb >= 1) {
+      return mb.toFixed(2) + ' MB';
+    }
+    const kb = bytes / 1024;
+    return kb.toFixed(1) + ' KB';
+  }
+
+  function showError(msg) {
+    errorMessage.textContent = msg;
+    errorBanner.style.display = 'block';
+    uploadLoader.style.display = 'none';
+    dropzone.style.display = 'block';
+  }
+
+  function clearError() {
+    errorBanner.style.display = 'none';
+    errorMessage.textContent = '';
+  }
+
+  function handleFileSelected(file) {
+    if (!file) return;
+    clearError();
+
+    // 1. Client-side size validation
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      const fileMb = (file.size / (1024 * 1024)).toFixed(1);
+      showError(`File '${file.name}' (${fileMb} MB) exceeds the maximum allowed size of ${MAX_FILE_SIZE_MB} MB.`);
+      fileInput.value = '';
+      return;
+    }
+
+    if (file.size === 0) {
+      showError(`File '${file.name}' is empty (0 bytes).`);
+      fileInput.value = '';
+      return;
+    }
+
+    // 2. Setup loader UI
+    loaderFilename.textContent = file.name;
+    loaderTotalSize.textContent = formatBytes(file.size);
+    uploadLoader.style.display = 'block';
+    progressFill.style.width = '0%';
+    progressFill.classList.remove('analyzing');
+    loaderStatusText.textContent = 'UPLOADING...';
+    loaderStatusBadge.className = 'chip built pulse-badge';
+    loaderStageMsg.textContent = 'Streaming dataset chunks to server...';
+    metricUploaded.textContent = '0.0 MB';
+    metricRemaining.textContent = formatBytes(file.size) + ' left';
+    metricPercent.textContent = '0%';
+    metricSpeed.textContent = '0.0 MB/s';
+    metricEta.textContent = 'Calculating...';
+
+    // 3. Perform XMLHttpRequest with progress tracking
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+    activeXhr = xhr;
+    const startTime = Date.now();
+    let lastLoaded = 0;
+    let lastTime = startTime;
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        const loaded = e.loaded;
+        const total = e.total;
+        const remaining = Math.max(0, total - loaded);
+        const percent = Math.min(100, Math.round((loaded / total) * 100));
+
+        progressFill.style.width = percent + '%';
+        metricPercent.textContent = percent + '%';
+        metricUploaded.textContent = formatBytes(loaded);
+        metricRemaining.textContent = formatBytes(remaining) + ' left';
+
+        // Calculate speed & ETA
+        const now = Date.now();
+        const elapsedSec = (now - startTime) / 1000;
+        if (elapsedSec > 0.2) {
+          const speedBytesPerSec = loaded / elapsedSec;
+          const speedMbPerSec = (speedBytesPerSec / (1024 * 1024)).toFixed(1);
+          metricSpeed.textContent = speedMbPerSec + ' MB/s';
+
+          if (speedBytesPerSec > 0 && remaining > 0) {
+            const etaSeconds = Math.ceil(remaining / speedBytesPerSec);
+            metricEta.textContent = etaSeconds > 60 
+              ? Math.floor(etaSeconds / 60) + 'm ' + (etaSeconds % 60) + 's' 
+              : etaSeconds + 's remaining';
+          } else {
+            metricEta.textContent = 'Finalizing...';
+          }
+        }
+
+        if (percent >= 100) {
+          loaderStatusText.textContent = 'ANALYZING DATASET...';
+          loaderStatusBadge.className = 'chip pass pulse-badge';
+          progressFill.classList.add('analyzing');
+          loaderStageMsg.textContent = 'Upload complete! Detecting encodings, parsing schema, and generating profile...';
+          metricRemaining.textContent = '0 MB left';
+          metricEta.textContent = 'Processing...';
+        }
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      activeXhr = null;
+      if (xhr.status >= 200 && xhr.status < 400) {
+        // Success
+        try {
+          const resp = JSON.parse(xhr.responseText);
+          if (resp.redirect) {
+            window.location.href = resp.redirect;
+            return;
+          }
+        } catch (_) {}
+        // Fallback redirect
+        window.location.href = '/profile';
+      } else {
+        // Server error
+        let msg = `Server returned error (${xhr.status})`;
+        try {
+          const resp = JSON.parse(xhr.responseText);
+          if (resp.message) msg = resp.message;
+        } catch (_) {
+          if (xhr.status === 429) {
+            msg = 'Upload rate limit exceeded. Please wait a minute before uploading again.';
+          } else if (xhr.responseText && xhr.responseText.length < 200) {
+            msg = xhr.responseText;
+          }
+        }
+        showError(msg);
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      activeXhr = null;
+      showError('Network error occurred during file upload. Please check your connection and retry.');
+    });
+
+    xhr.addEventListener('abort', () => {
+      activeXhr = null;
+      showError('Upload was cancelled.');
+    });
+
+    xhr.open('POST', '/upload', true);
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.send(formData);
+  }
+
+  // Cancel upload handler
+  cancelUploadBtn.addEventListener('click', () => {
+    if (activeXhr) {
+      activeXhr.abort();
+    }
+    uploadLoader.style.display = 'none';
+    fileInput.value = '';
+  });
+
+  // Drag and drop listeners
   ['dragenter', 'dragover'].forEach(eventName => {
     dropzone.addEventListener(eventName, (e) => {
       e.preventDefault();
@@ -58,7 +297,13 @@
     const files = dt.files;
     if (files.length > 0) {
       fileInput.files = files;
-      document.getElementById('uploadForm').submit();
+      handleFileSelected(files[0]);
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) {
+      handleFileSelected(fileInput.files[0]);
     }
   });
 </script>
