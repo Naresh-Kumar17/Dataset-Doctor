@@ -285,12 +285,13 @@ Gate thresholds are targets. Tighten them if too easy. Never loosen them without
 **Planted data:** `data/planted/nulls.csv` (see 6.1) and `clean_control.csv`.
 
 **Gate 2**
-- [ ] 100% of planted missing cells found (hidden tokens and sentinels included, counts exact for certain tokens).
-- [ ] 0 false alarms on `clean_control.csv`. Country code "NA" is flagged at most as `possible`.
-- [ ] Row-loss number is exact (compare with `df.dropna().shape`).
-- [ ] Planted target-related missingness is reported; planted random missingness is not.
-- [ ] GUI shows the module card with a table: column, missing %, hidden tokens found, severity.
-- [ ] Runs in under 5 seconds on 100,000 rows.
+- [x] 100% of planted missing cells found (hidden tokens and sentinels included, counts exact for certain tokens).
+- [x] 0 false alarms on `clean_control.csv`. Country code "NA" is flagged at most as `possible`.
+- [x] Row-loss number is exact (compare with `df.dropna().shape`).
+- [x] Planted target-related missingness is reported; planted random missingness is not.
+- [x] GUI shows the module card with a table: column, missing %, hidden tokens found, severity.
+- [x] Runs in under 5 seconds on 100,000 rows.
+
 
 **If it fails:** go through the debug loop. Most likely problem: hidden tokens, or pandas already converted them. Test each token type alone.
 
@@ -578,10 +579,11 @@ Plant 5 scenarios with a known right answer:
 
 | Phase | Name | Est. days | Gate result | Date |
 |-------|------|-----------|-------------|------|
-| 0 | Setup + evidence | 5-7 | | |
-| 1 | GUI shell + loader + profile | 3-4 | | |
-| 2 | Null detection | 3-4 | | |
+| 0 | Setup + evidence | 5-7 | PASS | 2026-10-19 |
+| 1 | GUI shell + loader + profile | 3-4 | PASS | 2026-10-19 |
+| 2 | Null detection | 3-4 | PASS | 2026-10-21 |
 | 3 | Split + evaluation engine | 4-5 | | |
+
 | 4 | Null advisor + fixer | 5-6 | | |
 | 5 | Duplicates | 3 | | |
 | 6 | Data types | 4 | | |

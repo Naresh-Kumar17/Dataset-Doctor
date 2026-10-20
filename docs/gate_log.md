@@ -27,3 +27,25 @@
   - Routes /, /upload, /profile, /target, /module/{id}, and /bench verified via automated tests (17 passed).
   - Test Bench page (/bench) opens and lists all modules with status chips.
 
+## 2026-10-21  Phase 2: Null detection   PASS
+- Automated benchmark runner verified via `python -m doctor.bench nulls` and `python -m doctor.bench --all`:
+  - 100% of planted missing cells found:
+    - 50 true NaNs in 'age' found with exact count.
+    - 60 hidden tokens ('N/A') in 'phone' found with exact count.
+    - 40 sentinel values ('-999') in 'score' found and classified strictly as 'possible'.
+    - 700 NaNs in 'notes' found with 'high' severity (>60% missing threshold).
+  - 0 false alarms on clean_control.csv:
+    - 0 certain issues on clean control.
+    - Tricky country code 'NA' (Namibia) flagged at most as 'possible'.
+  - Exact row-loss number confirmed:
+    - 796 rows lost (79.6%) exactly matches dropping all true missing values and confirmed sentinels.
+    - Row breakdown: 17 rows with 1 null, 66 rows with 2 nulls, 713 rows with 3+ nulls.
+  - Missingness pattern statistical tests verified:
+    - Planted target-related missingness ('income') detected and reported (Chi-square p < 0.05).
+    - Planted random missingness ('noise_col') correctly identified as not related (p >= 0.05).
+  - High-performance benchmark verified:
+    - 100,000 rows x 5 columns scanned in under 0.35s (threshold < 5.0s).
+- Full Phase 2 test suite: 10 passed in `tests/issues/test_nulls_detect.py`.
+- Neo-brutalist GUI diagnostic card & table added to `/module/nulls` with summary strip, row-loss impact banner, and evidence badges.
+
+
