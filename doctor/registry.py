@@ -27,8 +27,9 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
         name="Null / Missing Values",
         phase=2,
         description="Find missing values, hidden tokens (?, N/A), sentinels (-999), and missingness patterns.",
-        status="not_built",
+        status="gate_passed",
     ),
+
     "duplicates": ModuleInfo(
         id="duplicates",
         name="Duplicates",
