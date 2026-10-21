@@ -2,7 +2,7 @@
 
 Upload a CSV. Find the data problems that quietly ruin ML models. Get a recommended fix with reasons and test results. You decide. See the real before/after result.
 
-> Status: in development (Phase 0).
+> Status: in development (Phase 3 passed).
 
 ## Why this exists
 Many ML scores are fake. Common causes:
@@ -58,7 +58,7 @@ Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 | 0 | Setup + accident redo (evidence) | [x] PASS | 2026-10-19 |
 | 1 | GUI shell + loader + profile (test bench) | [x] PASS | 2026-10-19 |
 | 2 | Null detection | [x] PASS | 2026-10-21 |
-| 3 | Split + evaluation engine | [ ] | |
+| 3 | Split + evaluation engine | [x] PASS | 2026-10-21 |
 
 | 4 | Null advisor + fixer (interactive) | [ ] | |
 | 5 | Duplicates | [ ] | |

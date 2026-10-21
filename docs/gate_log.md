@@ -48,4 +48,16 @@
 - Full Phase 2 test suite: 10 passed in `tests/issues/test_nulls_detect.py`.
 - Neo-brutalist GUI diagnostic card & table added to `/module/nulls` with summary strip, row-loss impact banner, and evidence badges.
 
-
+## 2026-10-21  Phase 3: Split + evaluation engine   PASS
+- Automated benchmark runner verified via `python -m doctor.bench split_eval` and `python -m doctor.bench --all`:
+  - 7 of 7 Gate 3 checks PASSED:
+    - [PASS] Stratified split preserves class ratio within 1% on train and test (exact 85/15 ratio preserved).
+    - [PASS] Deterministic split verified (same seed yields identical partition; different seed yields different partition).
+    - [PASS] Zero partition overlap verified (strict set intersection check).
+    - [PASS] Synthetic leakage detected: pre-split balancing inflates recall (0.9941 vs honest 0.3167).
+    - [PASS] Always-predict-majority baseline verified (~85% accuracy, 0 minority recall, accuracy not reliable banner).
+    - [PASS] Delta smaller than CV std labelled 'within noise'.
+    - [PASS] Dataset < 500 rows generates noisy comparison warning.
+- Full Phase 3 test suite: 13 passed in `tests/test_split.py` and `tests/test_evaluate.py`.
+- Regression check: all 46 tests passed across the entire project.
+- Neo-brutalist GUI dashboard integrated at `/module/split_eval` with split overview stat grid, imbalance alert banner, baseline CV table, and synthetic leakage demonstration card.

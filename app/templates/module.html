@@ -12,10 +12,8 @@
     </div>
     <div style="display: flex; align-items: center; gap: 12px;">
       {% if module.status == 'gate_passed' %}
-        <span class="chip pass" style="font-size: 13px; padding: 6px 12px;">Phase 2: GATE PASSED</span>
+        <span class="chip pass" style="font-size: 13px; padding: 6px 12px;">Phase {{ module.phase }}: GATE PASSED</span>
       {% elif module.status == 'built' %}
-
-
         <span class="chip built" style="font-size: 13px; padding: 6px 12px;">BUILT</span>
       {% else %}
         <span class="chip notbuilt" style="font-size: 13px; padding: 6px 12px;">PHASE {{ module.phase }}: NOT BUILT</span>
@@ -153,6 +151,187 @@
         </div>
       {% endif %}
     </div>
+
+  {% elif module.id == 'split_eval' %}
+    {% if split_info and eval_result %}
+      <!-- Split Overview Strip -->
+      <div class="stat-grid" style="margin-bottom: 24px;">
+        <div class="stat-card" style="border-left: 6px solid var(--blue);">
+          <div class="stat-label">SPLIT STRATEGY</div>
+          <div class="stat-val" style="font-size: 20px;">80 / 20</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">{{ split_info.task_type|capitalize }} Stratified</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--green);">
+          <div class="stat-label">TRAIN PARTITION</div>
+          <div class="stat-val">{{ split_info.train_shape[0] }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">
+            {% if split_info.class_distribution_train %}
+              Ratio: {{ split_info.class_distribution_train }}
+            {% else %}
+              Features: {{ split_info.train_shape[1] - 1 }}
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--purple);">
+          <div class="stat-label">TEST PARTITION (UNTOUCHED)</div>
+          <div class="stat-val">{{ split_info.test_shape[0] }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">
+            {% if split_info.class_distribution_test %}
+              Ratio: {{ split_info.class_distribution_test }}
+            {% else %}
+              Never resampled
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--ink);">
+          <div class="stat-label">TARGET HYGIENE</div>
+          <div class="stat-val">{{ split_info.dropped_target_rows }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Rows dropped (missing target)</div>
+        </div>
+      </div>
+
+      <!-- Imbalance / Metric Guard Banner -->
+      {% if not eval_result.accuracy_reliable %}
+        <div class="banner warning" style="margin-bottom: 24px;">
+          <strong>ACCURACY IS NOT RELIABLE HERE:</strong> 
+          Minority class represents only {{ (eval_result.minority_share * 100)|round(1) }}% of samples (&lt; 20%). 
+          An always-predict-majority dummy model scores <strong>{{ (eval_result.majority_baseline.accuracy * 100)|round(1) }}% accuracy</strong> with <strong>0.0 minority recall</strong>. 
+          Evaluation must be judged by Minority Recall, Precision, and F1.
+        </div>
+      {% endif %}
+
+      <!-- Fixed Model Baseline Card -->
+      <div class="card" style="margin-bottom: 24px;">
+        <h3 class="card-title">FIXED MODEL BASELINE (RandomForest, 200 Trees, Seed {{ split_info.random_seed }})</h3>
+        <p style="font-size: 14px; color: #555; margin: -8px 0 16px;">
+          Evaluated via 5-Fold Stratified Cross-Validation on Train, plus final score on the untouched Test set.
+        </p>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>METRIC</th>
+                <th>5-FOLD CV ON TRAIN (MEAN ± STD)</th>
+                <th>UNTOUCHED TEST SCORE</th>
+                <th>MAJORITY MODEL BASELINE</th>
+                <th>STATUS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for metric, test_val in eval_result.test_scores.items() %}
+                <tr>
+                  <td><strong>{{ metric|upper }}</strong></td>
+                  <td>
+                    <span style="font-family: 'JetBrains Mono', monospace;">
+                      {{ eval_result.train_cv_mean[metric] }} ± {{ eval_result.train_cv_std[metric] }}
+                    </span>
+                  </td>
+                  <td>
+                    <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">
+                      {{ test_val }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if eval_result.majority_baseline and metric in eval_result.majority_baseline %}
+                      <span style="font-family: 'JetBrains Mono', monospace; color: #888;">
+                        {{ eval_result.majority_baseline[metric] }}
+                      </span>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if metric == 'accuracy' and not eval_result.accuracy_reliable %}
+                      <span class="chip notbuilt" style="font-size: 11px;">NOT RELIABLE</span>
+                    {% elif metric == eval_result.primary_metric %}
+                      <span class="chip pass" style="font-size: 11px;">PRIMARY METRIC</span>
+                    {% else %}
+                      <span class="chip built" style="font-size: 11px;">TRACKED</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Split-Order Leakage Proof (Empirical Demonstration) -->
+      {% if split_demo %}
+        <div class="card" style="margin-bottom: 24px; border: 3px solid var(--ink);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 class="card-title" style="margin: 0;">SPLIT-ORDER EVIDENCE: SYNTHETIC TEST LEAKAGE PROOF</h3>
+            <span class="chip pass" style="font-size: 12px;">GATE 3 DEMO</span>
+          </div>
+          <p style="font-size: 14px; color: #444; margin-bottom: 16px;">
+            Demonstrating why pre-split balancing ruins ML honesty by cloning minority rows into both train and test.
+          </p>
+
+          <div class="table-responsive" style="margin-bottom: 16px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>METHOD SETUP</th>
+                  <th>TEST ACCURACY</th>
+                  <th>TEST MINORITY RECALL</th>
+                  <th>TEST MINORITY F1</th>
+                  <th>EVALUATION VERDICT</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="background: #fff5f5;">
+                  <td>
+                    <strong>Flawed: Oversample Before Split</strong>
+                    <div style="font-size: 12px; color: #c00;">Synthetic clones in test partition</div>
+                  </td>
+                  <td><span style="font-family: monospace;">{{ split_demo.flawed_oversample_before_split.accuracy }}</span></td>
+                  <td><span style="font-family: monospace; color: #c00; font-weight: 700;">{{ split_demo.flawed_oversample_before_split.recall }} (INFLATED)</span></td>
+                  <td><span style="font-family: monospace;">{{ split_demo.flawed_oversample_before_split.f1 }}</span></td>
+                  <td><span class="chip fail">SYNTHETIC LEAKAGE</span></td>
+                </tr>
+                <tr style="background: #f0fff4;">
+                  <td>
+                    <strong>Honest: Split First (Oversample Train Only)</strong>
+                    <div style="font-size: 12px; color: #080;">Untouched 85/15 test distribution</div>
+                  </td>
+                  <td><span style="font-family: monospace;">{{ split_demo.honest_split_first.accuracy }}</span></td>
+                  <td><span style="font-family: monospace; color: #080; font-weight: 700;">{{ split_demo.honest_split_first.recall }} (REAL)</span></td>
+                  <td><span style="font-family: monospace;">{{ split_demo.honest_split_first.f1 }}</span></td>
+                  <td><span class="chip pass">HONEST EVALUATION</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Baseline: Split First (No Fix)</strong>
+                    <div style="font-size: 12px; color: #666;">Raw unbalanced data</div>
+                  </td>
+                  <td><span style="font-family: monospace;">{{ split_demo.baseline_no_fix.accuracy }}</span></td>
+                  <td><span style="font-family: monospace;">{{ split_demo.baseline_no_fix.recall }}</span></td>
+                  <td><span style="font-family: monospace;">{{ split_demo.baseline_no_fix.f1 }}</span></td>
+                  <td><span class="chip built">BASELINE</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="banner info" style="margin: 0; font-size: 13px;">
+            <strong>WHY THE OLD SCORE WAS INFLATED:</strong>
+            <ul style="margin: 4px 0 0 16px; padding: 0;">
+              {% for exp in split_demo.explanation %}
+                <li>{{ exp }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      {% endif %}
+
+    {% else %}
+      <div class="banner warning">
+        <strong>NO DATA LOADED:</strong> Please upload a dataset or set a target column on the <a href="/target" style="text-decoration: underline;">Target Selection Page</a> to run the evaluation engine.
+      </div>
+    {% endif %}
 
   {% else %}
     <!-- Module Not Built Placeholder for future phases -->
