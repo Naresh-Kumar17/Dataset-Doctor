@@ -51,6 +51,10 @@ def get_module_page(module_id: str, request: Request):
     summary_counts = {"high": 0, "medium": 0, "low": 0, "total": 0, "certain": 0, "possible": 0}
     row_loss = None
 
+    split_info = None
+    eval_result = None
+    split_demo = None
+
     if module_id == "nulls" and df is not None:
         detector = NullDetector()
         ctx = DetectionContext(target_column=target_col, task_type=task_type)
@@ -64,6 +68,30 @@ def get_module_page(module_id: str, request: Request):
         if issues:
             row_loss = issues[0].evidence.get("row_loss_impact")
 
+    elif module_id == "split_eval" and df is not None:
+        target = target_col or (df.columns[-1] if not df.empty else None)
+        if target and target in df.columns:
+            try:
+                from doctor.split import split_dataset
+                from doctor.evaluate import evaluate_split
+                from doctor.compare import run_split_order_demo
+
+                split_info = split_dataset(df, target=target, task_type=task_type, random_seed=42)
+                eval_result = evaluate_split(
+                    split_info.train_df,
+                    split_info.test_df,
+                    target=target,
+                    task_type=split_info.task_type,
+                    fast=True,
+                    random_seed=42,
+                )
+                if split_info.task_type == "classification":
+                    split_demo = run_split_order_demo(df, target=target, random_seed=42)
+            except Exception:
+                split_info = None
+                eval_result = None
+                split_demo = None
+
     return templates.TemplateResponse(
         request=request,
         name="module.html",
@@ -75,6 +103,10 @@ def get_module_page(module_id: str, request: Request):
             "issues": issues,
             "summary_counts": summary_counts,
             "row_loss": row_loss,
+            "split_info": split_info,
+            "eval_result": eval_result,
+            "split_demo": split_demo,
+            "target_col": target_col,
             "has_data": df is not None,
             "format_badge": format_evidence_badge,
         }
