@@ -29,6 +29,13 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
         description="Find missing values, hidden tokens (?, N/A), sentinels (-999), and missingness patterns.",
         status="gate_passed",
     ),
+    "split_eval": ModuleInfo(
+        id="split_eval",
+        name="Split & Evaluation Engine",
+        phase=3,
+        description="Stratified splitting, fixed RandomForest baseline, 5-fold CV, noise estimation, and leakage demo.",
+        status="not_built",
+    ),
 
     "duplicates": ModuleInfo(
         id="duplicates",

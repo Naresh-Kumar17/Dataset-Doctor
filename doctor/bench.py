@@ -153,6 +153,126 @@ def run_nulls_gate() -> tuple[bool, dict]:
     return gate_passed, details
 
 
+def run_split_eval_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 3 evaluation for Split + Evaluation Engine.
+    Verifies:
+    1. Stratified split keeps class ratio within 1% on both parts.
+    2. Determinism: Same seed gives same split, different seed gives different split.
+    3. Partition isolation: Zero row overlap between train and test partitions.
+    4. Planted check: Oversampling before split inflates test recall vs split-first.
+    5. Always-predict-majority model shows ~85% accuracy, 0 minority recall, and accuracy not reliable.
+    6. Noise guard: Changes smaller than CV std labelled 'within noise'.
+    7. Small dataset guard: Datasets < 500 rows produce noisy comparison warning.
+    """
+    import numpy as np
+    import pandas as pd
+    from doctor.split import split_dataset
+    from doctor.evaluate import evaluate_split, is_significant, EvalResult
+    from doctor.compare import run_split_order_demo
+
+    details = {"checks": [], "planted": 7, "found": 0, "missed": 0, "false_alarms": 0}
+
+    accident_csv = ROOT_DIR / "data" / "samples" / "accident.csv"
+    if not accident_csv.exists():
+        return False, {"checks": [{"name": "accident.csv exists", "passed": False}], "planted": 7, "found": 0, "missed": 7, "false_alarms": 0}
+
+    df_accident = pd.read_csv(accident_csv)
+
+    # 1. Stratified split ratio preservation
+    split1 = split_dataset(df_accident, target="severe_accident", random_seed=42)
+    full_ratio = float((df_accident["severe_accident"] == 1).mean())
+    tr_ratio = float((split1.train_df["severe_accident"] == 1).mean())
+    te_ratio = float((split1.test_df["severe_accident"] == 1).mean())
+    chk1 = abs(tr_ratio - full_ratio) < 0.01 and abs(te_ratio - full_ratio) < 0.01
+    details["checks"].append({
+        "name": "Stratified split preserves class ratio within 1% on train and test",
+        "passed": chk1,
+        "train_ratio": round(tr_ratio, 4),
+        "test_ratio": round(te_ratio, 4),
+        "target_ratio": round(full_ratio, 4),
+    })
+
+    # 2. Determinism
+    split_same = split_dataset(df_accident, target="severe_accident", random_seed=42)
+    split_diff = split_dataset(df_accident, target="severe_accident", random_seed=999)
+    chk2 = (split1.train_indices == split_same.train_indices) and (split1.train_indices != split_diff.train_indices)
+    details["checks"].append({
+        "name": "Deterministic split (same seed identical, different seed different)",
+        "passed": chk2,
+    })
+
+    # 3. Partition isolation (no row in both train and test)
+    overlap = set(split1.train_indices).intersection(set(split1.test_indices))
+    chk3 = len(overlap) == 0 and len(split1.train_indices) + len(split1.test_indices) == len(df_accident)
+    details["checks"].append({
+        "name": "Zero partition overlap (no row in both train and test)",
+        "passed": chk3,
+    })
+
+    # 4. Planted check: oversample before split gives higher recall than split first
+    demo = run_split_order_demo(df_accident, target="severe_accident", random_seed=42)
+    flawed_rec = demo["flawed_oversample_before_split"]["recall"]
+    honest_rec = demo["honest_split_first"]["recall"]
+    chk4 = demo["leakage_detected"] and flawed_rec > honest_rec
+    details["checks"].append({
+        "name": f"Synthetic leakage detected: pre-split balancing inflates recall ({flawed_rec:.4f} vs honest {honest_rec:.4f})",
+        "passed": chk4,
+    })
+
+    # 5. Always-predict-majority model baseline
+    eval_res = evaluate_split(split1.train_df, split1.test_df, target="severe_accident", fast=True, random_seed=42)
+    base = eval_res.majority_baseline
+    chk5 = (
+        base is not None
+        and abs(base["accuracy"] - 0.85) < 0.02
+        and base["recall"] == 0.0
+        and eval_res.accuracy_reliable is False
+    )
+    details["checks"].append({
+        "name": "Majority model baseline (~85% accuracy, 0 minority recall, accuracy not reliable banner)",
+        "passed": chk5,
+    })
+
+    # 6. Change smaller than CV std is labelled 'within noise'
+    dummy_before = EvalResult(
+        task_type="classification",
+        primary_metric="f1",
+        train_cv_mean={"f1": 0.50},
+        train_cv_std={"f1": 0.04},
+        test_scores={"f1": 0.50},
+    )
+    dummy_after = EvalResult(
+        task_type="classification",
+        primary_metric="f1",
+        train_cv_mean={"f1": 0.52},
+        train_cv_std={"f1": 0.04},
+        test_scores={"f1": 0.52},
+    )
+    sig, label = is_significant("f1", dummy_before, dummy_after)
+    chk6 = (sig is False) and (label == "within noise")
+    details["checks"].append({
+        "name": "Delta smaller than CV std labelled 'within noise'",
+        "passed": chk6,
+    })
+
+    # 7. Dataset under 500 rows shows noisy comparison warning
+    df_small = pd.DataFrame({"feat": range(200), "target": [0] * 160 + [1] * 40})
+    split_small = split_dataset(df_small, target="target", random_seed=42)
+    eval_small = evaluate_split(split_small.train_df, split_small.test_df, target="target", fast=True, random_seed=42)
+    chk7 = any("< 500" in w or "fewer than 500" in w for w in eval_small.warnings)
+    details["checks"].append({
+        "name": "Dataset < 500 rows generates noisy comparison warning",
+        "passed": chk7,
+    })
+
+    passed_count = sum(1 for c in details["checks"] if c["passed"])
+    details["found"] = passed_count
+    details["missed"] = len(details["checks"]) - passed_count
+    gate_passed = all(c["passed"] for c in details["checks"])
+    return gate_passed, details
+
+
 def run_benchmark(target: str = "--all"):
     print("=" * 65)
     print("DATASET DOCTOR: AUTOMATED TEST BENCH")
@@ -181,6 +301,27 @@ def run_benchmark(target: str = "--all"):
             status = "gate_passed" if passed else "gate_failed"
             now_iso = datetime.now().isoformat()
             update_module_status("nulls", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "split_eval":
+            passed, gate_details = run_split_eval_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("split_eval", status, gate_details=gate_details, timestamp=now_iso)
 
             print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
             for chk in gate_details["checks"]:
