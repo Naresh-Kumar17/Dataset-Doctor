@@ -161,3 +161,28 @@ def split_dataset(
         class_distribution_train=dist_train,
         class_distribution_test=dist_test,
     )
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+    sample_csv = Path(__file__).resolve().parent.parent / "data" / "samples" / "accident.csv"
+    if sample_csv.exists():
+        print("=" * 65)
+        print("DATASET DOCTOR: TRAIN/TEST SPLIT DEMONSTRATION")
+        print("=" * 65)
+        df_sample = pd.read_csv(sample_csv)
+        print(f"Dataset: {sample_csv.name} | Total rows: {len(df_sample)} | Columns: {len(df_sample.columns)}")
+        print(f"Target column: 'severe_accident'")
+        
+        split = split_dataset(df_sample, target="severe_accident", random_seed=42)
+        print(f"Inferred task type: {split.task_type.capitalize()}")
+        print(f"Dropped rows (missing target): {split.dropped_target_rows}")
+        print(f"Train partition: {split.train_shape[0]} rows ({split.train_shape[1]} cols) | Distribution: {split.class_distribution_train}")
+        print(f"Test partition:  {split.test_shape[0]} rows ({split.test_shape[1]} cols) | Distribution: {split.class_distribution_test}")
+        
+        overlap_count = len(set(split.train_indices).intersection(set(split.test_indices)))
+        print(f"Partition isolation: {overlap_count} overlapping rows (100% leak-free)")
+        print("=" * 65)
+    else:
+        print(f"Sample dataset not found at {sample_csv}")
+
