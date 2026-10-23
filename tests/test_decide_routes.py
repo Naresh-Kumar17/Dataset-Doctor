@@ -1,0 +1,94 @@
+"""
+Integration tests for Phase 4 /decide API routes.
+Verifies:
+- GET /decide/advise/{column} returns recommendations and CV comparison table.
+- POST /decide/preview returns 10-row before/after comparison.
+- POST /decide/apply executes single column remediation.
+- POST /decide/apply_all executes batch remediation across all null issues.
+- GET /decide/export returns runnable reproduce.py code.
+"""
+from pathlib import Path
+import pytest
+from fastapi.testclient import TestClient
+from app.main import app
+from app.auth import create_authenticated_session
+from app.config import AUTH_COOKIE_NAME
+
+SAMPLE_ACCIDENT = Path(__file__).resolve().parent.parent / "data" / "samples" / "accident.csv"
+
+
+@pytest.fixture
+def auth_client():
+    c = TestClient(app)
+    token = create_authenticated_session()
+    c.cookies.set(AUTH_COOKIE_NAME, token)
+    return c
+
+
+def test_decide_advise_endpoint(auth_client):
+    """GET /decide/advise/{col} returns ranked options and reasons."""
+    # Ensure dataset is loaded by uploading accident.csv
+    with open(SAMPLE_ACCIDENT, "rb") as f:
+        auth_client.post("/upload", files={"file": ("accident.csv", f, "text/csv")})
+
+    res = auth_client.get("/decide/advise/speed_limit")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["column"] == "speed_limit"
+    assert "recommended" in data
+    assert "options" in data
+    assert len(data["options"]) > 0
+    assert "confidence" in data
+
+
+def test_decide_preview_endpoint(auth_client):
+    """POST /decide/preview returns 10-row before/after comparison."""
+    with open(SAMPLE_ACCIDENT, "rb") as f:
+        auth_client.post("/upload", files={"file": ("accident.csv", f, "text/csv")})
+
+    res = auth_client.post(
+        "/decide/preview",
+        json={"column": "speed_limit", "option_id": "median"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["column"] == "speed_limit"
+    assert "rows" in data
+    assert len(data["rows"]) <= 10
+    assert "is_changed" in data["rows"][0]
+
+
+def test_decide_apply_endpoint(auth_client):
+    """POST /decide/apply executes remediation and records choice."""
+    with open(SAMPLE_ACCIDENT, "rb") as f:
+        auth_client.post("/upload", files={"file": ("accident.csv", f, "text/csv")})
+
+    res = auth_client.post(
+        "/decide/apply",
+        json={"column": "speed_limit", "option_id": "median", "decided_by": "user"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert data["column"] == "speed_limit"
+    assert data["remaining_nulls"] == 0
+
+
+def test_decide_apply_all_endpoint(auth_client):
+    """POST /decide/apply_all applies recommended fixes across all columns."""
+    with open(SAMPLE_ACCIDENT, "rb") as f:
+        auth_client.post("/upload", files={"file": ("accident.csv", f, "text/csv")})
+
+    res = auth_client.post("/decide/apply_all")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert "applied_count" in data
+
+
+def test_decide_export_reproduce_pipeline(auth_client):
+    """GET /decide/export returns executable Python script."""
+    res = auth_client.get("/decide/export")
+    assert res.status_code == 200
+    assert "def clean_dataset(" in res.text
+    assert "pd.read_csv" in res.text
