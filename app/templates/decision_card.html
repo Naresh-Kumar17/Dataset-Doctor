@@ -1,0 +1,237 @@
+<!-- Neo-Brutalist Interactive Decision Card (Phase 4) -->
+<div id="decisionModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+  <div class="card" style="background: #ffffff; max-width: 850px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; box-shadow: 10px 10px 0px #000; border: 4px solid #000; padding: 28px;">
+    
+    <!-- Modal Close Button -->
+    <button onclick="closeDecisionCard()" style="position: absolute; top: 16px; right: 16px; background: #ff5252; color: #fff; font-weight: 900; border: 3px solid #000; width: 36px; height: 36px; cursor: pointer; box-shadow: 2px 2px 0px #000;">✕</button>
+
+    <!-- Header -->
+    <div style="margin-bottom: 20px;">
+      <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+        <span class="chip" style="background: var(--blue); color: #fff; font-size: 11px;">ADVISOR & FIXER</span>
+        <span id="cardConfidenceChip" class="chip" style="background: var(--yellow); font-size: 11px;">EVALUATING</span>
+      </div>
+      <h2 style="font-size: 24px; font-weight: 900; margin: 0;">Remediation Decision: <span id="cardColumnName" style="color: var(--blue);">Column</span></h2>
+    </div>
+
+    <!-- Recommendation Banner -->
+    <div id="recommendationBanner" class="banner" style="background: #e8f5e9; border: 3px solid #000; box-shadow: 4px 4px 0px #000; margin-bottom: 20px; padding: 16px;">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+        <span style="font-size: 20px;">💡</span>
+        <strong style="font-size: 16px; text-transform: uppercase;">Recommended Method: <span id="recMethodBadge" class="chip" style="background: var(--green); font-size: 13px;">MEDIAN</span></strong>
+      </div>
+      <p id="recReasonText" style="margin: 0 0 10px 0; font-size: 14px; color: #222; font-weight: 500;"></p>
+      
+      <div id="recRulesContainer" style="font-size: 12px; color: #444; border-top: 1px dashed #666; padding-top: 8px;">
+        <strong>Triggered Rules:</strong> <span id="recRulesText"></span>
+      </div>
+    </div>
+
+    <!-- Tested Alternatives Table -->
+    <div style="margin-bottom: 24px;">
+      <h3 style="font-size: 16px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase;">Tested Remediation Alternatives (5-Fold CV on Train Only)</h3>
+      <div style="overflow-x: auto; border: 3px solid #000; box-shadow: 4px 4px 0px #000;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <thead>
+            <tr style="background: #f0f0f0; border-bottom: 3px solid #000;">
+              <th style="padding: 10px; text-align: center; width: 40px;">PICK</th>
+              <th style="padding: 10px; text-align: left;">METHOD</th>
+              <th style="padding: 10px; text-align: center;">CV SCORE</th>
+              <th style="padding: 10px; text-align: center;">ROWS KEPT</th>
+              <th style="padding: 10px; text-align: left;">DESCRIPTION</th>
+            </tr>
+          </thead>
+          <tbody id="optionsTableBody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Before / After 10-Row Preview Drawer -->
+    <div style="margin-bottom: 24px; border: 3px solid #000; padding: 14px; background: #fafafa; box-shadow: 4px 4px 0px #000;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h4 style="font-size: 14px; font-weight: 800; margin: 0; text-transform: uppercase;">10-Row Before / After Live Preview</h4>
+        <span id="previewSummaryBadge" class="chip" style="background: #e0e0e0; font-size: 11px;">0 Nulls Remaining</span>
+      </div>
+      <div style="overflow-x: auto; border: 2px solid #000; background: #fff;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; font-family: monospace;">
+          <thead>
+            <tr style="background: #f5f5f5; border-bottom: 2px solid #000;">
+              <th style="padding: 6px; text-align: center; width: 60px;">ROW #</th>
+              <th style="padding: 6px; text-align: center; width: 45%;">BEFORE (ORIGINAL)</th>
+              <th style="padding: 6px; text-align: center; width: 45%;">AFTER (TRANSFORMED)</th>
+            </tr>
+          </thead>
+          <tbody id="previewTableBody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Decision Action Buttons -->
+    <div style="display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;">
+      <button onclick="closeDecisionCard()" class="btn secondary" style="padding: 10px 18px;">SKIP FOR NOW</button>
+      <button id="applySelectedBtn" onclick="applySelectedDecision()" class="btn secondary" style="padding: 10px 18px; border-color: #000;">APPLY SELECTED</button>
+      <button id="applyRecommendedBtn" onclick="applyRecommendedDecision()" class="btn" style="background: var(--green); color: #000; font-weight: 900; padding: 10px 24px; box-shadow: 4px 4px 0px #000;">APPLY RECOMMENDED</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let currentDecisionData = null;
+
+async function openDecisionCard(columnName) {
+  const modal = document.getElementById('decisionModal');
+  modal.style.display = 'flex';
+  document.getElementById('cardColumnName').textContent = columnName;
+  document.getElementById('cardConfidenceChip').textContent = 'EVALUATING...';
+  document.getElementById('recReasonText').textContent = 'Evaluating cross-validation candidate options on training partition...';
+  document.getElementById('optionsTableBody').innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">Loading candidates and computing 5-fold CV scores...</td></tr>';
+  document.getElementById('previewTableBody').innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 10px;">Computing preview...</td></tr>';
+
+  try {
+    const res = await fetch(`/decide/advise/${encodeURIComponent(columnName)}`);
+    if (!res.ok) throw new Error('Failed to evaluate column advice');
+    const data = await res.json();
+    currentDecisionData = data;
+
+    // Render header and recommendation
+    document.getElementById('cardConfidenceChip').textContent = data.confidence.toUpperCase();
+    document.getElementById('cardConfidenceChip').style.background = data.confidence === 'clear' ? 'var(--green)' : 'var(--yellow)';
+    document.getElementById('recMethodBadge').textContent = data.recommended.toUpperCase();
+    document.getElementById('recReasonText').textContent = data.reason;
+    document.getElementById('recRulesText').textContent = data.rule_hits.join('; ') || 'None';
+
+    // Render options table
+    const tbody = document.getElementById('optionsTableBody');
+    tbody.innerHTML = '';
+    data.options.forEach(opt => {
+      const isRec = opt.id === data.recommended;
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #ddd';
+      if (isRec) tr.style.background = '#f9fff9';
+
+      const meanScore = opt.measured.score_mean !== undefined ? opt.measured.score_mean.toFixed(4) : '-';
+      const stdScore = opt.measured.score_std !== undefined ? `±${opt.measured.score_std.toFixed(4)}` : '';
+      const rowsKept = opt.measured.n_rows_kept !== undefined ? `${opt.measured.n_rows_kept} (${opt.measured.pct_rows_kept}%)` : '-';
+
+      tr.innerHTML = `
+        <td style="padding: 10px; text-align: center;">
+          <input type="radio" name="opt_choice" value="${opt.id}" ${isRec ? 'checked' : ''} onchange="loadPreview('${opt.id}')">
+        </td>
+        <td style="padding: 10px; font-weight: 700;">
+          ${opt.label} ${isRec ? '<span class="chip" style="background: var(--green); font-size: 10px; padding: 2px 6px;">RECOMMENDED</span>' : ''}
+        </td>
+        <td style="padding: 10px; text-align: center; font-weight: 600;">
+          ${meanScore} <span style="font-size: 11px; color: #666;">${stdScore}</span>
+        </td>
+        <td style="padding: 10px; text-align: center;">${rowsKept}</td>
+        <td style="padding: 10px; font-size: 12px; color: #444;">${opt.explanation}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Load initial preview for recommended
+    loadPreview(data.recommended);
+
+  } catch (err) {
+    alert('Error loading decision advice: ' + err.message);
+    closeDecisionCard();
+  }
+}
+
+async function loadPreview(optionId) {
+  if (!currentDecisionData) return;
+  const col = currentDecisionData.column;
+  try {
+    const res = await fetch('/decide/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ column: col, option_id: optionId })
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+
+    document.getElementById('previewSummaryBadge').textContent = 
+      `${data.fixed_null_count} Nulls Remaining | ${data.rows_retained} Rows Retained`;
+
+    const tbody = document.getElementById('previewTableBody');
+    tbody.innerHTML = '';
+    data.rows.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #eee';
+      const origDisplay = r.original === null ? '<span style="color: #d32f2f; font-weight: bold;">[NULL]</span>' : r.original;
+      const transDisplay = r.transformed === '[ROW DROPPED]' 
+        ? '<span style="color: #c2185b; font-weight: bold;">[ROW DROPPED]</span>'
+        : (r.is_changed ? `<span style="background: #fff59d; padding: 1px 4px; font-weight: bold;">${r.transformed}</span>` : r.transformed);
+
+      tr.innerHTML = `
+        <td style="padding: 4px; text-align: center; color: #777;">${r.index}</td>
+        <td style="padding: 4px; text-align: center;">${origDisplay}</td>
+        <td style="padding: 4px; text-align: center;">${transDisplay}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+  } catch (err) {
+    console.error('Failed to load preview:', err);
+  }
+}
+
+function closeDecisionCard() {
+  document.getElementById('decisionModal').style.display = 'none';
+  currentDecisionData = null;
+}
+
+async function applyRecommendedDecision() {
+  if (!currentDecisionData) return;
+  await executeApply(currentDecisionData.column, currentDecisionData.recommended, 'recommended_accepted');
+}
+
+async function applySelectedDecision() {
+  if (!currentDecisionData) return;
+  const selected = document.querySelector('input[name="opt_choice"]:checked');
+  if (!selected) {
+    alert('Please select an option.');
+    return;
+  }
+  const isRecommended = (selected.value === currentDecisionData.recommended);
+  await executeApply(currentDecisionData.column, selected.value, isRecommended ? 'recommended_accepted' : 'user');
+}
+
+async function executeApply(column, optionId, decidedBy) {
+  try {
+    const res = await fetch('/decide/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ column: column, option_id: optionId, decided_by: decidedBy })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to apply decision');
+
+    alert(`Success: ${data.message}`);
+    closeDecisionCard();
+    window.location.reload();
+  } catch (err) {
+    alert('Error applying decision: ' + err.message);
+  }
+}
+
+async function batchApplyAllRecommended() {
+  if (!confirm('Apply the recommended fix to ALL detected null columns? This will modify the dataset in-memory and update the decision audit log.')) {
+    return;
+  }
+  try {
+    const res = await fetch('/decide/apply_all', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Batch apply failed');
+    alert(`Success: ${data.message}`);
+    window.location.reload();
+  } catch (err) {
+    alert('Error during batch apply: ' + err.message);
+  }
+}
+</script>
