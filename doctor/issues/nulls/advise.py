@@ -93,8 +93,8 @@ class NullAdvisor(Advisor):
                 )
 
         # Target relationship from detection evidence
-        target_pattern = evidence.get("target_pattern", {})
-        is_target_linked = bool(target_pattern.get("related", False))
+        target_pattern = evidence.get("target_pattern")
+        is_target_linked = bool(target_pattern.get("related", False)) if isinstance(target_pattern, dict) else False
 
         # 3. Decision Selection & Confidence Scoring
         best_opt, final_reason, confidence = self._rank_and_select(
@@ -152,8 +152,8 @@ class NullAdvisor(Advisor):
                 skewness = float(clean_s.skew())
 
         # Target relationship from detection evidence
-        target_pattern = evidence.get("target_pattern", {})
-        is_target_linked = target_pattern.get("related", False)
+        target_pattern = evidence.get("target_pattern")
+        is_target_linked = bool(target_pattern.get("related", False)) if isinstance(target_pattern, dict) else False
 
         # Case 2: Extreme missingness (> 60%)
         if missing_pct > 0.60:
