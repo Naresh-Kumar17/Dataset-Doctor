@@ -88,6 +88,14 @@
       </div>
 
       {% if issues %}
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 14px;">
+          <button class="btn" onclick="batchApplyAllRecommended()" style="background: var(--green); color: #000; font-weight: 800; padding: 6px 14px; font-size: 13px; box-shadow: 3px 3px 0px #000;">
+            ⚡ APPLY RECOMMENDED TO ALL
+          </button>
+          <a href="/decide/export" class="btn secondary" style="padding: 6px 14px; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center;" download="reproduce.py">
+            💾 EXPORT REPRODUCE.PY
+          </a>
+        </div>
         <div class="table-responsive">
           <table class="data-table">
             <thead>
@@ -136,8 +144,8 @@
                     {% endif %}
                   </td>
                   <td>
-                    <button class="btn secondary" style="padding: 4px 10px; font-size: 12px;" disabled title="Interactive advisor will be activated in Phase 4">
-                      OPEN DECISION
+                    <button class="btn secondary" onclick="openDecisionCard('{{ iss.column }}')" style="padding: 4px 10px; font-size: 12px; cursor: pointer; border-color: #000; font-weight: 800;">
+                      DECIDE & FIX →
                     </button>
                   </td>
                 </tr>
@@ -145,6 +153,7 @@
             </tbody>
           </table>
         </div>
+        {% include 'decision_card.html' %}
       {% else %}
         <div class="banner success" style="margin: 0;">
           <strong>NO ISSUES FOUND</strong> — Every column is complete and free of missing values, hidden string tokens, and sentinel numbers.
