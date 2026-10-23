@@ -61,3 +61,26 @@
 - Full Phase 3 test suite: 13 passed in `tests/test_split.py` and `tests/test_evaluate.py`.
 - Regression check: all 46 tests passed across the entire project.
 - Neo-brutalist GUI dashboard integrated at `/module/split_eval` with split overview stat grid, imbalance alert banner, baseline CV table, and synthetic leakage demonstration card.
+
+## 2026-10-23  Phase 4: Null advisor + fixer, interactive   PASS
+- Automated benchmark runner verified via `python -m doctor.bench nulls_advisor` and `python -m doctor.bench --all`:
+  - 14 of 14 Gate 4 checks PASSED:
+    - Gate 4A (Advisor Ground Truth):
+      - [PASS] Scenario 1 (Numeric, 3% random missing, symmetric): recommends 'median' or 'mean'.
+      - [PASS] Scenario 2 (Numeric, 10% missing, heavily skewed): recommends 'median'.
+      - [PASS] Scenario 3 (Categorical, 5% missing): recommends 'mode' or 'missing_label'.
+      - [PASS] Scenario 4 (Column 75% missing): recommends 'add_indicator' or 'drop_column'.
+      - [PASS] Scenario 5 (Missingness linked to target): recommends 'add_indicator', does NOT drop rows.
+      - [PASS] 5 of 5 planted advisor recommendations matched expected ground truth (threshold >= 4/5).
+      - [PASS] Every recommendation provides plain-English rationale and measured 5-fold CV scores.
+      - [PASS] Close call flag and simplicity tie-breaker trigger when score delta is within CV std.
+    - Gate 4B (Fixer Verification):
+      - [PASS] After fix: 0 nulls remain in train and test partitions.
+      - [PASS] Test row count is strictly unchanged (0 test rows dropped; train-fitted fallback applied).
+      - [PASS] Test values changed only in cells that were originally null.
+      - [PASS] Learned values derived strictly from train partition (train median 20.0 vs full data 30.0; test imputed with 20.0, zero leakage).
+      - [PASS] Decision log persists sequential choices and exported `reproduce.py` builds identical result.
+      - [PASS] User override successfully changes applied remediation method.
+- Full Phase 4 test suite: 19 passed in `tests/issues/test_nulls_advise.py`, `tests/issues/test_nulls_fix.py`, and `tests/test_decide_routes.py`.
+- Regression check: all 65 tests passed across the entire project.
+- Neo-brutalist interactive decision cards integrated into `/module/nulls` with Before/After live preview, [APPLY RECOMMENDED], [CHOOSE ANOTHER], [SKIP], batch action [APPLY RECOMMENDED TO ALL], and standalone `reproduce.py` export endpoint.

@@ -26,6 +26,7 @@ from app.routes.auth import router as auth_router
 from app.routes.upload import router as upload_router
 from app.routes.bench import router as bench_router
 from app.routes.issues import router as issues_router
+from app.routes.decide import router as decide_router
 
 # Setup safe server-side logger
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -158,6 +159,7 @@ app.include_router(auth_router)
 app.include_router(upload_router)
 app.include_router(bench_router)
 app.include_router(issues_router)
+app.include_router(decide_router)
 
 # -------------------------------------------------------------------------
 # Health Check Endpoint (Public for Render Keep-Alive & Monitoring)

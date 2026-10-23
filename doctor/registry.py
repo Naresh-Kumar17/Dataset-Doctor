@@ -34,6 +34,13 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
         name="Split & Evaluation Engine",
         phase=3,
         description="Stratified splitting, fixed RandomForest baseline, 5-fold CV, noise estimation, and leakage demo.",
+        status="gate_passed",
+    ),
+    "nulls_advisor": ModuleInfo(
+        id="nulls_advisor",
+        name="Null Advisor & Fixer",
+        phase=4,
+        description="Rule-based shortlist, 5-fold CV measurement, decision cards, leak-free transformation, and reproduce.py pipeline.",
         status="not_built",
     ),
 
