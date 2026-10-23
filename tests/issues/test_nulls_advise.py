@@ -133,3 +133,17 @@ def test_simplicity_hierarchy_ranking(advisor):
     assert SIMPLICITY_ORDER["mean"] < SIMPLICITY_ORDER["add_indicator"]
     assert SIMPLICITY_ORDER["add_indicator"] < SIMPLICITY_ORDER["drop_rows"]
     assert SIMPLICITY_ORDER["drop_rows"] < SIMPLICITY_ORDER["drop_column"]
+
+
+def test_advisor_handles_none_target_pattern(advisor):
+    """Ensures advisor does not crash when evidence['target_pattern'] is None."""
+    df = pd.DataFrame({"col": [1.0, np.nan, 3.0, 4.0, 5.0] * 120, "target": [0, 1, 0, 1, 0] * 120})
+    issue = Issue(
+        module_id="nulls", column="col", severity="medium", certainty="certain",
+        title="None target pattern", description="Evidence contains None target pattern",
+        evidence={"total_rows": 600, "total_missing_count": 120, "total_missing_pct": 0.20, "target_pattern": None}
+    )
+    rec = advisor.advise(issue, df, target="target", ctx=DetectionContext(target_column="target", task_type="classification"))
+    assert rec.recommended is not None
+    assert rec.options is not None
+
