@@ -73,22 +73,22 @@ Build the end-to-end remediation engine for missing values. For each column with
 ## 7. Acceptance Criteria (Gates 4A & 4B)
 
 ### Gate 4A: Advisor Evaluation
-- [ ] Planted scenario 1: Numeric, 3% random missing, symmetric -> recommends `mean` or `median`.
-- [ ] Planted scenario 2: Numeric, 10% missing, heavily skewed -> recommends `median`.
-- [ ] Planted scenario 3: Categorical, 5% missing -> recommends `mode` or `missing_label`.
-- [ ] Planted scenario 4: Column 75% missing -> recommends `drop_column` or `add_indicator`.
-- [ ] Planted scenario 5: Missingness depends on target -> includes `add_indicator`, excludes `drop_rows`.
-- [ ] At least 4 of 5 recommendations match ground truth.
-- [ ] Every recommendation provides rationale and measured CV scores.
-- [ ] "Close call" flag triggers when score delta is smaller than CV std.
+- [x] Planted scenario 1: Numeric, 3% random missing, symmetric -> recommends `mean` or `median`.
+- [x] Planted scenario 2: Numeric, 10% missing, heavily skewed -> recommends `median`.
+- [x] Planted scenario 3: Categorical, 5% missing -> recommends `mode` or `missing_label`.
+- [x] Planted scenario 4: Column 75% missing -> recommends `drop_column` or `add_indicator`.
+- [x] Planted scenario 5: Missingness depends on target -> includes `add_indicator`, excludes `drop_rows`.
+- [x] At least 4 of 5 recommendations match ground truth (5/5 passed).
+- [x] Every recommendation provides rationale and measured CV scores.
+- [x] "Close call" flag triggers when score delta is smaller than CV std.
 
 ### Gate 4B: Fixer Verification
-- [ ] After fix: 0 missing values remain in train and test (except `leave`).
-- [ ] Test row count is strictly unchanged (0 test rows dropped).
-- [ ] Test cell modifications occur only in cells that were originally missing.
-- [ ] Imputed values equal training statistics (verifying full partition isolation).
-- [ ] User overrides successfully apply alternative remediation.
-- [ ] Decision log persists choices and feeds `reproduce.py`.
+- [x] After fix: 0 missing values remain in train and test (except `leave`).
+- [x] Test row count is strictly unchanged (0 test rows dropped).
+- [x] Test cell modifications occur only in cells that were originally missing.
+- [x] Imputed values equal training statistics (verifying full partition isolation).
+- [x] User overrides successfully apply alternative remediation.
+- [x] Decision log persists choices and feeds `reproduce.py` and `cleaned_dataset.csv` export.
 
 ---
 
