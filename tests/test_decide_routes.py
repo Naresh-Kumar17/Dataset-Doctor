@@ -92,3 +92,18 @@ def test_decide_export_reproduce_pipeline(auth_client):
     assert res.status_code == 200
     assert "def clean_dataset(" in res.text
     assert "pd.read_csv" in res.text
+
+
+def test_decide_export_cleaned_csv(auth_client):
+    """GET /decide/export_csv returns CSV content with attachment header."""
+    with open(SAMPLE_ACCIDENT, "rb") as f:
+        auth_client.post("/upload", files={"file": ("accident.csv", f, "text/csv")})
+
+    res = auth_client.get("/decide/export_csv")
+    assert res.status_code == 200
+    assert "text/csv" in res.headers["content-type"]
+    assert 'attachment; filename="cleaned_dataset.csv"' in res.headers.get("content-disposition", "")
+    assert len(res.text.splitlines()) > 1
+
+
+
