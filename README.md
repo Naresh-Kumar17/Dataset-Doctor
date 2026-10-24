@@ -37,6 +37,35 @@ Upload -> Read -> Detect -> Advise -> Ask you -> Fix -> Re-test
 - **Fix:** applied to training data, with values learned from training data only.
 - **Re-test:** same untouched test set, before vs after.
 
+<details>
+<summary><b>🔍 Click to view interactive Decision Card preview & features</b></summary>
+<br>
+
+```text
++-----------------------------------------------------------------------------------+
+| SPEED_LIMIT (Numeric) • 3.2% Nulls (28 cells) • Severity: Medium                  |
++-----------------------------------------------------------------------------------+
+| 💡 RECOMMENDATION: Impute with Median (30.0 mph)                                  |
+| Rationale: Symmetric distribution without extreme tails. Fast & avoids leakage.  |
+|                                                                                   |
+|  [⚡ APPLY RECOMMENDED]   [⚙️ CHOOSE ANOTHER]   [⏭️ SKIP]   [👁️ LIVE PREVIEW]      |
++-----------------------------------------------------------------------------------+
+| Remediations Comparison (5-Fold Stratified CV on Train Partition):                |
+|  • median:          F1 = 0.421 ± 0.012  (RECOMMENDED)                            |
+|  • mean:            F1 = 0.419 ± 0.011  (Close call, delta < std)                |
+|  • add_indicator:   F1 = 0.415 ± 0.014                                           |
+|  • drop_rows:       DISQUALIFIED (Drops test rows & distorts true distribution)   |
++-----------------------------------------------------------------------------------+
+| Actions available in UI:                                                          |
+|  • ⚡ APPLY RECOMMENDED TO ALL: Batch remediates all detected null issues          |
+|  • 📥 DOWNLOAD CLEANED CSV: Exports transformed dataset instantly                |
+|  • 💾 EXPORT REPRODUCE.PY: Exports reproducible pipeline script                   |
++-----------------------------------------------------------------------------------+
+```
+
+</details>
+
+
 ## Modules (one folder per issue, three files each)
 | Issue | Detect | Advise | Fix | Phase |
 |-------|--------|--------|-----|-------|
@@ -57,11 +86,22 @@ Upload -> Read -> Detect -> Advise -> Ask you -> Fix -> Re-test
 ## How the project is built: phases with gates
 Each phase ends with a **gate**: run the module on data with problems planted in advance. Pass, then continue. Fail, then find where it went wrong and run the gate again.
 
+<details>
+<summary><b>🧪 Click to expand Automated Benchmark Gate commands</b></summary>
+<br>
+
 ```bash
-python -m doctor.bench nulls     # run one gate
-python -m doctor.bench --all     # re-run every finished gate
+# Run individual phase gates
+python -m doctor.bench nulls          # Phase 2: 100% planted missing found, 0 false alarms
+python -m doctor.bench split_eval     # Phase 3: Train/test split preservation & leakage check
+python -m doctor.bench nulls_advisor  # Phase 4: Advisor ground truth & fixer verification
+
+# Re-run all completed gates
+python -m doctor.bench --all
 ```
-The GUI has a **Test Bench** page (`/bench`) that shows the same result: planted vs found, missed, false alarms.
+
+The GUI also features an interactive **Test Bench** page (`/bench`) that shows the same result: planted vs found, missed, false alarms.
+</details>
 
 Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 
@@ -72,7 +112,6 @@ Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 | 1 | GUI shell + loader + profile (test bench) | [x] PASS | 2026-10-19 |
 | 2 | Null detection | [x] PASS | 2026-10-21 |
 | 3 | Split + evaluation engine | [x] PASS | 2026-10-21 |
-
 | 4 | Null advisor + fixer (interactive) | [x] PASS | 2026-10-23 |
 | 5 | Duplicates | [ ] | |
 | 6 | Data types | [ ] | |
@@ -90,10 +129,16 @@ Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 | Split first, class weights | 0.8375 | 0.4000 | 0.4248 |
 | Split first, oversample train only | 0.8500 | 0.3167 | 0.3878 |
 
-**Why the old score was inflated:**
-1. Oversampling before splitting cloned synthetic/duplicated minority rows into both training and test sets.
-2. The model achieved near-perfect test recall (99.4%) by memorizing duplicate training instances that leaked into the test set.
-3. Splitting first preserves an unpolluted 85/15 test distribution, revealing honest real-world generalization (21.7% baseline recall, improved honestly to 40.0% with class weights).
+<details>
+<summary><b>🔍 Click to read the analysis: Why the old score was inflated & how Dataset Doctor prevents it</b></summary>
+<br>
+
+1. **Synthetic Duplication Leakage**: Oversampling before splitting cloned synthetic minority rows into both training and test sets.
+2. **Memorization Artifacts**: The model achieved near-perfect test recall (99.4%) by memorizing duplicate training instances that leaked into the test set.
+3. **Honest Generalization**: Splitting first preserves an unpolluted 85/15 test distribution, revealing honest real-world generalization (21.7% baseline recall, improved honestly to 40.0% with class weights).
+
+</details>
+
 
 
 ## Tech stack
