@@ -194,11 +194,11 @@ Pass: the numbers differ in a way you can explain in 3 lines.
 | Gate passes but real file breaks | Planted data was too easy; add a harder case from the real file |
 
 ## 12. Deploy (free options)
-- **Render**: connect GitHub repo, start command `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- **Railway**: same start command
+- **Render**: connect GitHub repo, start command `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, health check path `/health`
+- **Railway**: same start command, health check path `/health`
 - **Hugging Face Spaces**: Docker space, expose port 7860
 
-Free hosts have small memory. Lower the file limit to 10 MB on the deployed version.
+Free hosts have small memory. Lower the file limit to 10 MB on the deployed version. Public `/health` endpoint is available for container health checks and liveness monitoring.
 
 ## 13. Weekly routine
 - Pick one phase (or part of one) as the week's target.
