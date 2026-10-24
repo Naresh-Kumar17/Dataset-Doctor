@@ -106,4 +106,15 @@ def test_decide_export_cleaned_csv(auth_client):
     assert len(res.text.splitlines()) > 1
 
 
+def test_decide_export_cleaned_csv_no_dataset(auth_client, monkeypatch):
+    """GET /decide/export_csv returns 400 when no dataset or sample is available."""
+    from app.routes import decide
+    monkeypatch.setattr(decide, "SAMPLE_ACCIDENT", Path("/nonexistent/path/accident.csv"))
+
+    res = auth_client.get("/decide/export_csv")
+    assert res.status_code == 400
+    assert "No active dataset" in res.json()["detail"]
+
+
+
 
