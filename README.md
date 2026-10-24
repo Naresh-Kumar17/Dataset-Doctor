@@ -1,9 +1,20 @@
 # Dataset Doctor
 
+[![Live Demo on Render](https://img.shields.io/badge/Render-Live%20Demo-brightgreen?style=for-the-badge&logo=render)](https://dataset-doctor-8c7b.onrender.com/)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Status](https://img.shields.io/badge/Gate%204-PASS-success?style=for-the-badge)](docs/gate_log.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
 Upload a CSV. Find the data problems that quietly ruin ML models. Get a recommended fix with reasons and test results. You decide. See the real before/after result.
 
-> **Live Demo**: [https://dataset-doctor-8c7b.onrender.com/](https://dataset-doctor-8c7b.onrender.com/)  
-> **Status**: Active development (**Phase 4 PASS** — Interactive Null Advisor & Fixer verified).
+> 🌐 **Live Application**: [https://dataset-doctor-8c7b.onrender.com/](https://dataset-doctor-8c7b.onrender.com/)  
+> 🚦 **Development Gate**: **Phase 4 PASS** (Interactive Null Advisor, Fixer, Batch Actions, & CSV Export).
+
+---
+
+### Quick Navigation
+[🌐 Live Web Demo](https://dataset-doctor-8c7b.onrender.com/) • [💡 Why This Exists](#why-this-exists) • [⚙️ Workflow](#how-it-works) • [📋 Modules](#modules-one-folder-per-issue-three-files-each) • [🚦 Phase Tracker](#phase-tracker) • [⚡ Quick Start](#quick-start)
 
 
 ## Why this exists
