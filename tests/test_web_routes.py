@@ -14,7 +14,7 @@ SAMPLE_ACCIDENT = Path(__file__).resolve().parent.parent / "data" / "samples" / 
 
 
 def test_public_health_check_no_auth_required():
-    """Health check endpoint must be publicly accessible without authentication for Render keep-alive."""
+    """Health check endpoint must be publicly accessible without authentication for health monitoring."""
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "Dataset Doctor is running"}

@@ -162,7 +162,7 @@ app.include_router(issues_router)
 app.include_router(decide_router)
 
 # -------------------------------------------------------------------------
-# Health Check Endpoint (Public for Render Keep-Alive & Monitoring)
+# Health Check Endpoint (Public for Liveness & Monitoring)
 # -------------------------------------------------------------------------
 @app.get("/health")
 def health_check():
