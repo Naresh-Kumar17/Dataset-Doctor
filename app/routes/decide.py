@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 
 from doctor.base import Decision, DetectionContext, Issue
@@ -293,3 +293,18 @@ def export_reproduce_pipeline(request: Request):
 
     code = pipeline.export_reproduce_code(raw_data_path="raw_data.csv")
     return PlainTextResponse(code, media_type="text/x-python")
+
+
+@router.get("/export_csv")
+def export_cleaned_csv(request: Request):
+    """
+    Exports the current in-memory cleaned/transformed dataset as a downloadable CSV.
+    """
+    df, _, _, _ = _get_active_df_and_target(request)
+    csv_str = df.to_csv(index=False)
+    return Response(
+        content=csv_str,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="cleaned_dataset.csv"'},
+    )
+
