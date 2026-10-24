@@ -60,7 +60,7 @@ Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 | 2 | Null detection | [x] PASS | 2026-10-21 |
 | 3 | Split + evaluation engine | [x] PASS | 2026-10-21 |
 
-| 4 | Null advisor + fixer (interactive) | [ ] | |
+| 4 | Null advisor + fixer (interactive) | [x] PASS | 2026-10-23 |
 | 5 | Duplicates | [ ] | |
 | 6 | Data types | [ ] | |
 | 7 | Outlier detection | [ ] | |
