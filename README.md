@@ -2,7 +2,9 @@
 
 Upload a CSV. Find the data problems that quietly ruin ML models. Get a recommended fix with reasons and test results. You decide. See the real before/after result.
 
-> Status: in development (Phase 3 passed).
+> **Live Demo**: [https://dataset-doctor-8c7b.onrender.com/](https://dataset-doctor-8c7b.onrender.com/)  
+> **Status**: Active development (**Phase 4 PASS** — Interactive Null Advisor & Fixer verified).
+
 
 ## Why this exists
 Many ML scores are fake. Common causes:
@@ -99,7 +101,7 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
-Open http://127.0.0.1:8000
+Open the live web app at [https://dataset-doctor-8c7b.onrender.com/](https://dataset-doctor-8c7b.onrender.com/) or access your local instance.
 
 Full steps: [SETUP.md](SETUP.md)
 
