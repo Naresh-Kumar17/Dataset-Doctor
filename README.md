@@ -149,17 +149,26 @@ Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 - pytest
 
 ## Quick start
+
+> 🚀 **Try it online instantly without installation:**  
+> 👉 **[https://dataset-doctor-8c7b.onrender.com/](https://dataset-doctor-8c7b.onrender.com/)**
+
+<details>
+<summary><b>💻 Run locally from source (click to expand)</b></summary>
+<br>
+
 ```bash
-git clone <your-repo-url>
-cd dataset-doctor
+git clone https://github.com/Naresh-Kumar17/Dataset-Doctor.git
+cd Dataset-Doctor
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
-Open the live web app at [https://dataset-doctor-8c7b.onrender.com/](https://dataset-doctor-8c7b.onrender.com/) or access your local instance.
 
-Full steps: [SETUP.md](SETUP.md)
+</details>
+
+Full setup and testing steps: [SETUP.md](SETUP.md)
 
 ## Project docs
 - [PRD.md](PRD.md): what and why
@@ -169,17 +178,27 @@ Full steps: [SETUP.md](SETUP.md)
 - [GITHUB_INSTRUCTIONS.md](GITHUB_INSTRUCTIONS.md): git branching, phase completion, and PR rules
 
 ## Project structure
-```
+
+<details>
+<summary><b>📁 Click to expand repository directory map</b></summary>
+<br>
+
+```text
 dataset-doctor/
-  doctor/        core logic (no web code)
-    issues/      one folder per issue: detect.py, advise.py, fix.py, explain.py
-  app/           FastAPI app, templates, static files
-  tools/         planted data generator
-  data/          samples and planted test data with truth files
-  tests/         unit tests per module
-  experiments/   first test, accident redo
-  docs/          notes.md, gate_log.md
+  doctor/        core diagnostic and evaluation logic (no web dependencies)
+    issues/      one folder per issue: detect.py, advise.py, fix.py
+    bench.py     automated benchmark gate runner
+    pipeline.py  remediation pipeline & reproduce.py generator
+  app/           FastAPI web application, neo-brutalist templates, API routes
+  tools/         planted data generator and truth file builder
+  data/          samples and planted test datasets with truth files
+  tests/         unit & integration test suite (66+ passing tests)
+  experiments/   baseline evaluations and accident study
+  docs/          gate_log.md, phase specifications, and notes
 ```
+
+</details>
+
 
 ## Limits
 - CSV only, max 50 MB.
