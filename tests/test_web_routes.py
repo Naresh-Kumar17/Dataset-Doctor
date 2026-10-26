@@ -43,7 +43,7 @@ def test_login_invalid_credentials_rejected():
 
 
 def test_login_valid_credentials_succeeds_and_sets_cookie():
-    """Login with valid project credentials nareshkumar2501 / ds2501Fast succeeds."""
+    """Login with valid project credentials from configuration succeeds."""
     fresh_client = TestClient(app)
     response = fresh_client.post(
         "/login",
