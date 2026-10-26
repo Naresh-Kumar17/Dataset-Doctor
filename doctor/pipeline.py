@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import pandas as pd
+import re
 from doctor.base import Decision
 from doctor.issues.nulls.fix import NullFixer
 from doctor.issues.duplicates.fix import DuplicateFixer
@@ -112,7 +113,11 @@ class RemediationPipeline:
             opt = s.option_id
             params = s.fitted_params
 
-            lines.append(f'    # Step: {s.step_id} | Column: {col} | Method: {opt} | Decided by: {s.decided_by}')
+            col_clean = re.sub(r"[\r\n]", "", str(col))
+            opt_clean = re.sub(r"[\r\n]", "", str(opt))
+            decided_clean = re.sub(r"[\r\n]", "", str(s.decided_by))
+            step_clean = re.sub(r"[\r\n]", "", str(s.step_id))
+            lines.append(f'    # Step: {step_clean} | Column: {col_clean} | Method: {opt_clean} | Decided by: {decided_clean}')
             if col and params.get("tokens_to_null"):
                 lines.append(f'    if {repr(col)} in data.columns:')
                 lines.append(f'        data[{repr(col)}] = data[{repr(col)}].replace({repr(params["tokens_to_null"])}, np.nan)')
