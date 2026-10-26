@@ -9,22 +9,15 @@ from fastapi import APIRouter, File, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from doctor.loader import LoaderError, load_csv, MAX_FILE_SIZE_MB
+from doctor.loader import LoaderError, load_csv, MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES
 from doctor.profile import profile_dataframe
 from doctor.registry import get_all_modules
 from app.session import create_session, get_session
-from app.security import sanitize_filename, sanitize_text_input, rate_limiter
+from app.security import sanitize_filename, sanitize_text_input, rate_limiter, get_client_ip
 from app.config import RATE_LIMIT_UPLOAD
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
-
-
-def get_client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
 
 
 def is_xhr(request: Request) -> bool:
@@ -72,7 +65,33 @@ async def post_upload_file(request: Request, file: UploadFile = File(...)):
 
     # 2. Filename Sanitization against path traversal
     filename = sanitize_filename(file.filename or "dataset.csv")
-    raw_bytes = await file.read()
+
+    # 3. Stream upload in 1MB chunks to prevent memory exhaustion DoS
+    CHUNK_SIZE = 1024 * 1024
+    chunks = []
+    total_bytes = 0
+    while True:
+        chunk = await file.read(CHUNK_SIZE)
+        if not chunk:
+            break
+        total_bytes += len(chunk)
+        if total_bytes > MAX_FILE_SIZE_BYTES:
+            err_msg = f"File '{filename}' exceeds the maximum allowed size of {MAX_FILE_SIZE_MB} MB."
+            if is_xhr(request):
+                return JSONResponse(status_code=413, content={"status": "error", "message": err_msg})
+            return templates.TemplateResponse(
+                request=request,
+                name="index.html",
+                context={
+                    "active_filename": None,
+                    "error": err_msg,
+                    "max_file_size_mb": MAX_FILE_SIZE_MB,
+                },
+                status_code=413,
+            )
+        chunks.append(chunk)
+
+    raw_bytes = b"".join(chunks)
 
     try:
         df, metadata = load_csv(raw_bytes, filename=filename)
@@ -131,6 +150,7 @@ async def post_upload_file(request: Request, file: UploadFile = File(...)):
         max_age=3600,
         httponly=True,
         samesite="lax",
+        secure=request.url.scheme == "https",
     )
     return response
 
