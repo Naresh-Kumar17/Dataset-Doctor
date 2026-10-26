@@ -174,6 +174,11 @@ def post_lock_target(
     clean_target = sanitize_text_input(target_column, 120)
     clean_task = sanitize_text_input(task_type, 30).lower()
 
+    if clean_target in ("__none__", "", "none") or clean_task == "unsupervised":
+        session.target_column = None
+        session.task_type = "unsupervised"
+        return RedirectResponse(url="/profile?locked=1", status_code=303)
+
     if clean_target not in session.df.columns:
         # Invalid column choice
         return RedirectResponse(url="/profile", status_code=303)
