@@ -32,11 +32,22 @@ class NullFixer(Fixer):
         if not col or col not in train_df.columns:
             return {"option": "leave", "column": col}
 
-        series = train_df[col]
-        # Replace explicit hidden tokens / sentinels if specified in decision
-        tokens_to_null = params.get("tokens_to_null", [])
+        series = train_df[col].copy()
+        # Collect explicit hidden tokens / sentinels if specified in decision
+        tokens_to_null = list(params.get("tokens_to_null", []))
+
+        is_object_or_str = series.dtype == object or isinstance(series.dtype, pd.StringDtype)
+        if is_object_or_str:
+            # Standard string tokens that represent missing values
+            standard_tokens = ["", "?", "-", "n/a", "N/A", "n.a.", "N.A.", "null", "NULL", "none", "NONE", "nan", "NAN"]
+            for tok in standard_tokens:
+                if tok not in tokens_to_null:
+                    tokens_to_null.append(tok)
+
         if tokens_to_null:
             series = series.replace(tokens_to_null, np.nan)
+        if is_object_or_str:
+            series = series.apply(lambda x: np.nan if isinstance(x, str) and not x.strip() else x)
 
         valid_vals = series.dropna()
         is_numeric = pd.api.types.is_numeric_dtype(series)
@@ -128,10 +139,19 @@ class NullFixer(Fixer):
 
         df_out = df.copy()
 
-        # Step 1: Normalize any designated tokens/sentinels to NaN first
-        tokens_to_null = fitted.get("tokens_to_null", [])
+        # Step 1: Normalize any designated tokens/sentinels and standard missing strings to NaN first
+        tokens_to_null = list(fitted.get("tokens_to_null", []))
+        is_object_or_str = df_out[col].dtype == object or isinstance(df_out[col].dtype, pd.StringDtype)
+        if is_object_or_str:
+            standard_tokens = ["", "?", "-", "n/a", "N/A", "n.a.", "N.A.", "null", "NULL", "none", "NONE", "nan", "NAN"]
+            for tok in standard_tokens:
+                if tok not in tokens_to_null:
+                    tokens_to_null.append(tok)
+
         if tokens_to_null:
             df_out[col] = df_out[col].replace(tokens_to_null, np.nan)
+        if is_object_or_str:
+            df_out[col] = df_out[col].apply(lambda x: np.nan if isinstance(x, str) and not x.strip() else x)
 
         # Step 2: Apply chosen remediation
         if option == "drop_rows":
