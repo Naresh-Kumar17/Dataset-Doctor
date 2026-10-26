@@ -23,9 +23,14 @@ if not SECRET_KEY:
     # Generate persistent or fallback session key
     SECRET_KEY = secrets.token_hex(32)
 
-# Temporary Project Authentication Credentials
-AUTH_USERNAME = os.getenv("AUTH_USERNAME", "nareshkumar2501")
-AUTH_PASSWORD = os.getenv("AUTH_PASSWORD", "ds2501Fast")
+# Project Authentication Credentials
+AUTH_USERNAME = os.getenv("AUTH_USERNAME", "admin")
+AUTH_PASSWORD = os.getenv("AUTH_PASSWORD", "")
+if not AUTH_PASSWORD:
+    if ENV == "production":
+        AUTH_PASSWORD = secrets.token_urlsafe(16)
+    else:
+        AUTH_PASSWORD = "dev-dataset-doctor-pass"
 AUTH_COOKIE_NAME = "dataset_doctor_auth"
 AUTH_TOKEN_EXPIRY_HOURS = int(os.getenv("AUTH_TOKEN_EXPIRY_HOURS", "24"))
 
