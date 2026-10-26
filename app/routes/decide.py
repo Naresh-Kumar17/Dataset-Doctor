@@ -21,6 +21,7 @@ from doctor.issues.nulls.detect import NullDetector
 from doctor.issues.nulls.fix import NullFixer
 from doctor.pipeline import RemediationPipeline
 from app.session import create_session, get_session
+from app.security import sanitize_text_input
 
 router = APIRouter(prefix="/decide", tags=["decide"])
 SAMPLE_ACCIDENT = Path(__file__).resolve().parent.parent.parent / "data" / "samples" / "accident.csv"
@@ -229,12 +230,13 @@ def apply_decision(req: ApplyDecisionRequest, request: Request):
             sentinels = []
         params["tokens_to_null"] = tokens + sentinels
 
+    clean_decided_by = sanitize_text_input(req.decided_by or "user", 50)
     decision = Decision(
         issue_id="nulls",
         column=col,
         option_id=req.option_id,
         params=params,
-        decided_by=req.decided_by or "user",
+        decided_by=clean_decided_by,
     )
 
     fixer = NullFixer()
@@ -264,7 +266,14 @@ def apply_decision(req: ApplyDecisionRequest, request: Request):
         "message": f"Successfully applied '{req.option_id}' to column '{col}'.",
     })
     if session:
-        resp.set_cookie("session_id", session.session_id, max_age=3600, httponly=True, samesite="lax")
+        resp.set_cookie(
+            "session_id",
+            session.session_id,
+            max_age=3600,
+            httponly=True,
+            samesite="lax",
+            secure=request.url.scheme == "https",
+        )
     return resp
 
 
@@ -331,7 +340,14 @@ def apply_all_recommendations(request: Request):
         "message": f"Batch applied recommendations to {len(applied_steps)} column(s).",
     })
     if session:
-        resp.set_cookie("session_id", session.session_id, max_age=3600, httponly=True, samesite="lax")
+        resp.set_cookie(
+            "session_id",
+            session.session_id,
+            max_age=3600,
+            httponly=True,
+            samesite="lax",
+            secure=request.url.scheme == "https",
+        )
     return resp
 
 
@@ -353,12 +369,13 @@ def apply_duplicate_decision(req: ApplyDuplicateDecisionRequest, request: Reques
     if "target_column" not in params and target_col:
         params["target_column"] = target_col
 
+    clean_decided_by = sanitize_text_input(req.decided_by or "user", 50)
     decision = Decision(
         issue_id="duplicates",
         column=None,
         option_id=req.option_id,
         params=params,
-        decided_by=req.decided_by or "user",
+        decided_by=clean_decided_by,
     )
     fitted = fixer.fit(df, decision)
     df_transformed = fixer.transform(df, fitted, is_test=False)
@@ -413,9 +430,17 @@ def export_reproduce_pipeline(request: Request):
 def export_cleaned_csv(request: Request):
     """
     Exports the current in-memory cleaned/transformed dataset as a downloadable CSV.
+    Neutralizes spreadsheet formula injection (=, +, -, @) on export.
     """
     df, _, _, _ = _get_active_df_and_target(request)
-    csv_str = df.to_csv(index=False)
+    export_df = df.copy()
+    for c in export_df.columns:
+        s = export_df[c]
+        if s.dtype == object or pd.api.types.is_string_dtype(s.dtype):
+            export_df[c] = s.astype(str).apply(
+                lambda v: f"'{v}" if v and str(v).startswith(("=", "+", "-", "@")) else v
+            )
+    csv_str = export_df.to_csv(index=False)
     return Response(
         content=csv_str,
         media_type="text/csv",
