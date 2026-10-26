@@ -122,3 +122,35 @@ def test_remediation_pipeline_and_reproduce_export():
     cleaned = clean_fn(train, is_test=False)
     assert cleaned["x"].isna().sum() == 0
     assert cleaned["cat"].isna().sum() == 0
+
+
+def test_fixer_normalizes_string_tokens_and_sentinels(fixer):
+    """Hidden tokens like '?', 'N/A', empty strings, and sentinels are converted and imputed."""
+    from doctor.issues.nulls.detect import NullDetector
+    from doctor.base import DetectionContext
+
+    df = pd.DataFrame({
+        "status": ["valid", "?", "valid", "", "N/A"],
+        "reading": [10.0, -999.0, 30.0, 40.0, -999.0],
+    })
+
+    dec_status = Decision(issue_id="nulls", column="status", option_id="mode", params={}, decided_by="recommended_accepted")
+    dec_reading = Decision(issue_id="nulls", column="reading", option_id="median", params={"tokens_to_null": [-999.0]}, decided_by="recommended_accepted")
+
+    fitted_s = fixer.fit(df, dec_status)
+    df_step1 = fixer.transform(df, fitted_s, is_test=False)
+
+    fitted_r = fixer.fit(df_step1, dec_reading)
+    df_step2 = fixer.transform(df_step1, fitted_r, is_test=False)
+
+    # All '?', '', 'N/A' must be replaced with 'valid'
+    assert (df_step2["status"] == "valid").all()
+    # All -999.0 sentinels must be replaced with median (30.0)
+    assert not (df_step2["reading"] == -999.0).any()
+    assert (df_step2["reading"] == 30.0).sum() == 3
+
+    # Verification: NullDetector finds 0 issues on cleaned dataframe
+    detector = NullDetector()
+    issues = detector.detect(df_step2, ctx=DetectionContext(target_column=None, task_type="unsupervised"))
+    assert len(issues) == 0
+
