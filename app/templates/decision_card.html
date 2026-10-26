@@ -83,6 +83,19 @@
 <script>
 let currentDecisionData = null;
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>"']/g, function(m) {
+    return {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[m];
+  });
+}
+
 async function openDecisionCard(columnName) {
   const modal = document.getElementById('decisionModal');
   modal.style.display = 'flex';
@@ -163,10 +176,14 @@ async function loadPreview(optionId) {
     data.rows.forEach(r => {
       const tr = document.createElement('tr');
       tr.style.borderBottom = '1px solid #eee';
-      const origDisplay = r.original === null ? '<span style="color: #d32f2f; font-weight: bold;">[NULL]</span>' : r.original;
+      const origDisplay = r.original === null 
+        ? '<span style="color: #d32f2f; font-weight: bold;">[NULL]</span>' 
+        : escapeHtml(r.original);
       const transDisplay = r.transformed === '[ROW DROPPED]' 
         ? '<span style="color: #c2185b; font-weight: bold;">[ROW DROPPED]</span>'
-        : (r.is_changed ? `<span style="background: #fff59d; padding: 1px 4px; font-weight: bold;">${r.transformed}</span>` : r.transformed);
+        : (r.is_changed 
+            ? `<span style="background: #fff59d; padding: 1px 4px; font-weight: bold;">${escapeHtml(r.transformed)}</span>` 
+            : escapeHtml(r.transformed));
 
       tr.innerHTML = `
         <td style="padding: 4px; text-align: center; color: #777;">${r.index}</td>
