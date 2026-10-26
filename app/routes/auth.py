@@ -19,31 +19,36 @@ from app.config import (
     AUTH_TOKEN_EXPIRY_HOURS,
     RATE_LIMIT_LOGIN,
 )
-from app.security import rate_limiter, sanitize_text_input
+from app.security import rate_limiter, sanitize_text_input, get_client_ip
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
 
-def get_client_ip(request: Request) -> str:
-    """Extracts client IP, respecting X-Forwarded-For if behind a proxy like Render."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+def is_safe_redirect_url(url: str) -> bool:
+    """Verifies that redirect URL is strictly local and cannot trigger protocol-relative open redirects."""
+    if not url or not url.startswith("/"):
+        return False
+    if url.startswith("//") or url.startswith("/\\"):
+        return False
+    import re
+    if re.search(r"[\r\n\t]", url):
+        return False
+    return True
 
 
 @router.get("/login", response_class=HTMLResponse)
 def get_login_page(request: Request, next: str = "/"):
+    clean_next = next if is_safe_redirect_url(next) else "/"
     if is_authenticated(request):
-        return RedirectResponse(url=next or "/", status_code=303)
+        return RedirectResponse(url=clean_next, status_code=303)
 
     return templates.TemplateResponse(
         request=request,
         name="login.html",
         context={
             "error": None,
-            "next_url": next,
+            "next_url": clean_next,
             "active_filename": None,
             "is_logged_in": False,
         }
@@ -90,7 +95,7 @@ async def post_login(
 
     # Valid login -> create token & set cookie
     token = create_authenticated_session()
-    safe_next = next_url if (next_url and next_url.startswith("/") and not next_url.startswith("//")) else "/"
+    safe_next = next_url if is_safe_redirect_url(next_url) else "/"
     
     response = RedirectResponse(url=safe_next, status_code=303)
     response.set_cookie(
