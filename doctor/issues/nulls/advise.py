@@ -40,6 +40,7 @@ class NullAdvisor(Advisor):
         train_df: pd.DataFrame,
         target: Optional[str] = None,
         ctx: Optional[DetectionContext] = None,
+        measure: bool = True,
     ) -> Recommendation:
         """
         Generates evidence-backed recommendations for a single missing value issue.
@@ -59,7 +60,8 @@ class NullAdvisor(Advisor):
 
         # 2. Measurement via Cross-Validation on train_df
         can_measure = (
-            target is not None
+            measure
+            and target is not None
             and target in train_df.columns
             and col in train_df.columns
             and col != target
@@ -93,7 +95,7 @@ class NullAdvisor(Advisor):
                 )
 
         # Target relationship from detection evidence
-        target_pattern = evidence.get("target_pattern", {})
+        target_pattern = evidence.get("target_pattern") or {}
         is_target_linked = bool(target_pattern.get("related", False))
 
         # 3. Decision Selection & Confidence Scoring
@@ -152,8 +154,8 @@ class NullAdvisor(Advisor):
                 skewness = float(clean_s.skew())
 
         # Target relationship from detection evidence
-        target_pattern = evidence.get("target_pattern", {})
-        is_target_linked = target_pattern.get("related", False)
+        target_pattern = evidence.get("target_pattern") or {}
+        is_target_linked = bool(target_pattern.get("related", False))
 
         # Case 2: Extreme missingness (> 60%)
         if missing_pct > 0.60:
@@ -330,8 +332,10 @@ class NullAdvisor(Advisor):
         # Rule 1: Dataset under 500 rows -> "not enough data"
         if train_size < 500 or not can_measure:
             preferred = shortlist[0] if shortlist else measured_options[0].id
-            reason = f"{primary_reason} (Small sample: {train_size} rows < 500; prioritizing rule-based choice)."
-            return preferred, reason, "not enough data"
+            if train_size < 500:
+                reason = f"{primary_reason} (Small sample: {train_size} rows < 500; prioritizing rule-based choice)."
+                return preferred, reason, "not enough data"
+            return preferred, primary_reason, "clear"
 
         # Filter to shortlisted options for primary ranking, while keeping measured stats
         valid_opts = [o for o in measured_options if o.id in shortlist]
