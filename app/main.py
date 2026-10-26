@@ -21,7 +21,7 @@ from app.config import (
     RATE_LIMIT_GLOBAL,
 )
 from app.auth import is_authenticated
-from app.security import rate_limiter
+from app.security import rate_limiter, get_client_ip
 from app.routes.auth import router as auth_router
 from app.routes.upload import router as upload_router
 from app.routes.bench import router as bench_router
@@ -63,10 +63,7 @@ PUBLIC_PREFIXES = ("/static",)
 class SecurityAndAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        client_ip = (
-            request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-            or (request.client.host if request.client else "unknown")
-        )
+        client_ip = get_client_ip(request)
 
         # 1. Global IP Rate Limiting Check
         is_allowed, retry_after = rate_limiter.is_allowed(f"global:{client_ip}", RATE_LIMIT_GLOBAL, 60)
