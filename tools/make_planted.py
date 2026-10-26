@@ -150,12 +150,114 @@ def make_nulls_planted():
     return nulls_csv, truth_path
 
 
+def make_duplicates_planted():
+    """
+    Creates data/planted/duplicates.csv and truth JSON following IMPLEMENTATION.md Gate 5:
+    - 50 exact duplicate rows
+    - 20 near-duplicate rows (differing only in text casing, whitespace, or tiny numeric differences)
+    - 10 conflicting pairs (identical features, inverted target value)
+    """
+    rng = np.random.RandomState(42)
+    n_base = 500
+
+    cities = ["Berlin", "Tokyo", "Paris", "New York", "London", "Toronto", "Sydney", "Singapore"]
+    base_df = pd.DataFrame({
+        "customer_id": [f"CUST_{i:04d}" for i in range(1, n_base + 1)],
+        "name": [f"Customer_{i}" for i in range(1, n_base + 1)],
+        "city": [cities[i % len(cities)] for i in range(n_base)],
+        "score": rng.randint(200, 850, size=n_base),
+        "amount": np.round(rng.uniform(10.0, 500.0, size=n_base), 2),
+        "target": rng.choice([0, 1], p=[0.75, 0.25], size=n_base),
+    })
+
+    # 1. 50 exact duplicate rows: randomly select 50 rows and copy exactly
+    exact_idx = rng.choice(n_base, size=50, replace=False)
+    exact_rows = base_df.iloc[exact_idx].copy()
+
+    # 2. 20 near duplicates: select 20 distinct rows and introduce minor variations
+    near_idx = rng.choice([i for i in range(n_base) if i not in exact_idx], size=20, replace=False)
+    near_rows = base_df.iloc[near_idx].copy()
+    # 10 rows with case / whitespace variations
+    for i in range(10):
+        orig_row = near_rows.iloc[i]
+        near_rows.iloc[i, near_rows.columns.get_loc("name")] = orig_row["name"].upper()
+        near_rows.iloc[i, near_rows.columns.get_loc("city")] = f"  {orig_row['city']}  "
+    # 10 rows with tiny float fuzz (< 1e-4) that rounds to same 4 decimals
+    for i in range(10, 20):
+        orig_row = near_rows.iloc[i]
+        near_rows.iloc[i, near_rows.columns.get_loc("amount")] = round(orig_row["amount"] + 0.00003, 5)
+
+    # 3. 10 conflicting pairs: select 10 rows, duplicate all features identically, but flip target!
+    conflicting_idx = rng.choice([i for i in range(n_base) if i not in exact_idx and i not in near_idx], size=10, replace=False)
+    conflicting_rows = base_df.iloc[conflicting_idx].copy()
+    conflicting_rows["target"] = 1 - conflicting_rows["target"]
+
+    # Combine into full planted dataset
+    # Total rows = 500 (base) + 50 (exact) + 20 (near) + 10 (conflicting) = 580 rows
+    full_df = pd.concat([base_df, exact_rows, near_rows, conflicting_rows], ignore_index=True)
+
+    dup_csv = PLANTED_DIR / "duplicates.csv"
+    full_df.to_csv(dup_csv, index=False)
+
+    truth = {
+        "module": "duplicates",
+        "rows": len(full_df),
+        "base_rows": n_base,
+        "planted": {
+            "exact_duplicate_surplus": 50,
+            "near_duplicates": 20,
+            "conflicting_pairs": 10,
+        },
+        "must_not_flag_on_control": True,
+    }
+
+    truth_path = PLANTED_DIR / "duplicates_truth.json"
+    with open(truth_path, "w", encoding="utf-8") as f:
+        json.dump(truth, f, indent=2)
+
+    print(f"Created {dup_csv.name} ({len(full_df)} rows) and {truth_path.name}")
+    return dup_csv, truth_path
+
+
+def make_prebalanced_planted():
+    """
+    Creates a pre-balanced dataset by synthetically oversampling an imbalanced dataset
+    to exactly 50/50 balance before any train/test split.
+    """
+    sample_csv = ROOT_DIR / "data" / "samples" / "accident.csv"
+    if sample_csv.exists():
+        df = pd.read_csv(sample_csv)
+    else:
+        rng = np.random.RandomState(42)
+        n = 1000
+        df = pd.DataFrame({
+            "feat1": rng.normal(0, 1, size=n),
+            "feat2": rng.randint(0, 10, size=n),
+            "severe_accident": rng.choice([0, 1], p=[0.85, 0.15], size=n),
+        })
+
+    from imblearn.over_sampling import RandomOverSampler
+    ros = RandomOverSampler(random_state=42)
+    X = df.drop(columns=["severe_accident"])
+    y = df["severe_accident"]
+    X_res, y_res = ros.fit_resample(X, y)
+    df_prebalanced = pd.concat([X_res, y_res], axis=1)
+
+    pb_csv = PLANTED_DIR / "prebalanced_planted.csv"
+    df_prebalanced.to_csv(pb_csv, index=False)
+    print(f"Created {pb_csv.name} ({len(df_prebalanced)} rows, 50/50 balanced)")
+    return pb_csv
+
+
 def main():
     print("Generating planted datasets...")
     make_clean_control()
     make_nulls_planted()
+    make_duplicates_planted()
+    make_prebalanced_planted()
     print("All planted datasets successfully generated.")
 
 
 if __name__ == "__main__":
     main()
+
