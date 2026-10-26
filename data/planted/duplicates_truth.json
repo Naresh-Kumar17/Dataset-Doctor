@@ -1,0 +1,11 @@
+{
+  "module": "duplicates",
+  "rows": 580,
+  "base_rows": 500,
+  "planted": {
+    "exact_duplicate_surplus": 50,
+    "near_duplicates": 20,
+    "conflicting_pairs": 10
+  },
+  "must_not_flag_on_control": true
+}
