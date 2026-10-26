@@ -12,7 +12,7 @@ import re
 import secrets
 import threading
 import time
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 # -------------------------------------------------------------------------
 # Password Hashing & Verification (PBKDF2-HMAC-SHA256 with random salt)
@@ -94,6 +94,23 @@ def sanitize_text_input(val: str, max_length: int = 200) -> str:
     # Strip null bytes and control characters
     cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", val)
     return cleaned.strip()[:max_length]
+
+
+def get_client_ip(request: Any) -> str:
+    """
+    Extracts the client IP address safely to mitigate rate-limit spoofing.
+    When behind a trusted reverse proxy (e.g. Render, Railway, Nginx), the proxy
+    appends the connecting IP to the end of the X-Forwarded-For list.
+    We inspect the rightmost entry to avoid trusting client-prepended spoofed IPs.
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+        if parts:
+            clean_ip = re.sub(r"[^\w\.\:]", "", parts[-1])
+            if clean_ip:
+                return clean_ip
+    return request.client.host if (request.client and request.client.host) else "unknown"
 
 
 # -------------------------------------------------------------------------
