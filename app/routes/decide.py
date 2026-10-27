@@ -20,10 +20,11 @@ from doctor.issues.nulls.advise import NullAdvisor
 from doctor.issues.nulls.detect import NullDetector
 from doctor.issues.nulls.fix import NullFixer
 from doctor.pipeline import RemediationPipeline
-from app.session import get_session
+from app.session import create_session, get_session
 
 router = APIRouter(prefix="/decide", tags=["decide"])
 SAMPLE_ACCIDENT = Path(__file__).resolve().parent.parent.parent / "data" / "samples" / "accident.csv"
+SAMPLE_NULLS = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "nulls.csv"
 
 
 class ApplyDecisionRequest(BaseModel):
@@ -39,15 +40,39 @@ class PreviewRequest(BaseModel):
     params: Optional[Dict[str, Any]] = None
 
 
-def _get_active_df_and_target(request: Request) -> tuple[pd.DataFrame, Optional[str], Optional[str], Optional[Any]]:
+def _get_active_df_and_target(request: Request, column: Optional[str] = None) -> tuple[pd.DataFrame, Optional[str], Optional[str], Optional[Any]]:
     session_id = request.cookies.get("session_id")
     session = get_session(session_id)
     if session and session.df is not None:
-        return session.df, session.target_column, session.task_type, session
+        if column is None or column in session.df.columns:
+            return session.df, session.target_column, session.task_type, session
+
+    # Check if requested column specifically exists in SAMPLE_NULLS
+    if column is not None and SAMPLE_NULLS.exists():
+        from doctor.loader import load_csv
+        try:
+            df_nulls, _ = load_csv(str(SAMPLE_NULLS), filename="nulls.csv")
+            if column in df_nulls.columns:
+                if session is None:
+                    session = create_session()
+                session.df = df_nulls
+                session.target_column = "target"
+                session.task_type = "classification"
+                session.metadata = {"filename": "nulls.csv (Sample Preview)"}
+                return df_nulls, "target", "classification", session
+        except Exception:
+            pass
 
     if SAMPLE_ACCIDENT.exists():
         from doctor.loader import load_csv
         df, _ = load_csv(str(SAMPLE_ACCIDENT), filename="accident.csv")
+        if session is None:
+            session = create_session()
+        if session.df is None:
+            session.df = df
+            session.target_column = "severe_accident"
+            session.task_type = "classification"
+            session.metadata = {"filename": "accident.csv (Sample)"}
         return df, "severe_accident", "classification", session
 
     raise HTTPException(status_code=400, detail="No active dataset uploaded or session found.")
@@ -58,7 +83,7 @@ def get_column_advice(column: str, request: Request):
     """
     Evaluates remediation options for a specific column and returns ranked recommendations.
     """
-    df, target_col, task_type, _ = _get_active_df_and_target(request)
+    df, target_col, task_type, _ = _get_active_df_and_target(request, column=column)
 
     if column not in df.columns:
         raise HTTPException(status_code=404, detail=f"Column '{column}' not found in dataset.")
@@ -108,7 +133,7 @@ def get_fix_preview(req: PreviewRequest, request: Request):
     """
     Generates a 10-row before/after preview comparing original vs transformed cell values.
     """
-    df, target_col, _, _ = _get_active_df_and_target(request)
+    df, target_col, _, _ = _get_active_df_and_target(request, column=req.column)
     col = req.column
 
     if col not in df.columns:
@@ -126,8 +151,16 @@ def get_fix_preview(req: PreviewRequest, request: Request):
     fitted = fixer.fit(df, decision)
     df_fixed = fixer.transform(df, fitted, is_test=False)
 
-    # Find rows with missing values first to highlight changes
-    missing_indices = df[df[col].isna()].index.tolist()
+    # Find rows with missing values (including ? and string tokens) to highlight changes
+    col_s = df[col]
+    tokens_to_null = fitted.get("tokens_to_null", [])
+    is_missing_mask = col_s.isna()
+    if tokens_to_null:
+        is_missing_mask = is_missing_mask | col_s.isin(tokens_to_null)
+    if col_s.dtype == object or isinstance(col_s.dtype, pd.StringDtype):
+        is_missing_mask = is_missing_mask | col_s.isin(["", "?", "-", "n/a", "N/A"]) | (col_s.astype(str).str.strip() == "")
+
+    missing_indices = df[is_missing_mask].index.tolist()
     if len(missing_indices) >= 10:
         sample_indices = missing_indices[:10]
     else:
@@ -137,7 +170,7 @@ def get_fix_preview(req: PreviewRequest, request: Request):
     preview_rows = []
     for idx in sample_indices:
         orig_val = df.loc[idx, col]
-        is_orig_nan = pd.isna(orig_val)
+        is_orig_nan = bool(is_missing_mask.loc[idx])
 
         if req.option_id == "drop_rows" and idx not in df_fixed.index:
             fixed_val = "[ROW DROPPED]"
@@ -163,7 +196,7 @@ def get_fix_preview(req: PreviewRequest, request: Request):
         "column": col,
         "option_id": req.option_id,
         "rows": preview_rows,
-        "original_null_count": int(df[col].isna().sum()),
+        "original_null_count": int(is_missing_mask.sum()),
         "fixed_null_count": int(df_fixed[col].isna().sum()) if col in df_fixed.columns else 0,
         "rows_retained": len(df_fixed),
     }
@@ -174,17 +207,33 @@ def apply_decision(req: ApplyDecisionRequest, request: Request):
     """
     Applies remediation to the active session dataset and updates decision log.
     """
-    df, target_col, _, session = _get_active_df_and_target(request)
+    df, target_col, task_type, session = _get_active_df_and_target(request, column=req.column)
     col = req.column
 
     if col not in df.columns:
         raise HTTPException(status_code=404, detail=f"Column '{col}' not found.")
 
+    params = dict(req.params or {})
+    # Automatically extract hidden tokens and sentinels for this column from issues
+    detector = NullDetector()
+    ctx = DetectionContext(target_column=target_col, task_type=task_type)
+    detected_issues = detector.detect(df, ctx=ctx)
+    col_issue = next((iss for iss in detected_issues if iss.column == col), None)
+    if col_issue and "tokens_to_null" not in params:
+        ev = col_issue.evidence or {}
+        tokens = list(ev.get("hidden_token_counts", {}).keys())
+        tokens = ["" if t == "<empty>" else t for t in tokens]
+        try:
+            sentinels = [float(s) for s in ev.get("sentinel_counts", {}).keys()]
+        except Exception:
+            sentinels = []
+        params["tokens_to_null"] = tokens + sentinels
+
     decision = Decision(
         issue_id="nulls",
         column=col,
         option_id=req.option_id,
-        params=req.params or {},
+        params=params,
         decided_by=req.decided_by or "user",
     )
 
@@ -198,14 +247,14 @@ def apply_decision(req: ApplyDecisionRequest, request: Request):
         session.decisions.append({
             "column": col,
             "option_id": req.option_id,
-            "params": req.params or {},
+            "params": params,
             "decided_by": req.decided_by or "user",
             "fitted_params": {k: v for k, v in fitted.items() if k != "tokens_to_null"},
         })
 
     remaining_nulls = int(df_transformed[col].isna().sum()) if col in df_transformed.columns else 0
 
-    return {
+    resp = JSONResponse({
         "status": "success",
         "column": col,
         "applied_option": req.option_id,
@@ -213,7 +262,10 @@ def apply_decision(req: ApplyDecisionRequest, request: Request):
         "total_rows": len(df_transformed),
         "total_columns": len(df_transformed.columns),
         "message": f"Successfully applied '{req.option_id}' to column '{col}'.",
-    }
+    })
+    if session:
+        resp.set_cookie("session_id", session.session_id, max_age=3600, httponly=True, samesite="lax")
+    return resp
 
 
 @router.post("/apply_all")
@@ -228,7 +280,7 @@ def apply_all_recommendations(request: Request):
     issues = detector.detect(df, ctx=ctx)
 
     if not issues:
-        return {"status": "success", "message": "No null issues detected to fix.", "applied_count": 0}
+        return JSONResponse({"status": "success", "message": "No null issues detected to fix.", "applied_count": 0})
 
     advisor = NullAdvisor()
     fixer = NullFixer()
@@ -242,12 +294,22 @@ def apply_all_recommendations(request: Request):
         if not col or col not in current_df.columns:
             continue
 
-        rec = advisor.advise(iss, current_df, target=target_col, ctx=ctx)
+        ev = iss.evidence or {}
+        tokens = list(ev.get("hidden_token_counts", {}).keys())
+        tokens = ["" if t == "<empty>" else t for t in tokens]
+        try:
+            sentinels = [float(s) for s in ev.get("sentinel_counts", {}).keys()]
+        except Exception:
+            sentinels = []
+        tokens_to_null = tokens + sentinels
+
+        # Fast non-blocking recommendation calculation for batch apply to prevent proxy timeout
+        rec = advisor.advise(iss, current_df, target=target_col, ctx=ctx, measure=False)
         dec = Decision(
             issue_id="nulls",
             column=col,
             option_id=rec.recommended,
-            params={},
+            params={"tokens_to_null": tokens_to_null},
             decided_by="recommended_accepted",
         )
         step = pipeline.record_decision(dec, current_df)
@@ -260,13 +322,65 @@ def apply_all_recommendations(request: Request):
         for s in pipeline.get_decision_log():
             session.decisions.append(s)
 
-    return {
+    resp = JSONResponse({
         "status": "success",
         "applied_count": len(applied_steps),
         "applied_steps": applied_steps,
         "final_rows": len(current_df),
         "final_columns": len(current_df.columns),
         "message": f"Batch applied recommendations to {len(applied_steps)} column(s).",
+    })
+    if session:
+        resp.set_cookie("session_id", session.session_id, max_age=3600, httponly=True, samesite="lax")
+    return resp
+
+
+class ApplyDuplicateDecisionRequest(BaseModel):
+    option_id: str
+    params: Optional[Dict[str, Any]] = None
+    decided_by: Optional[str] = "user"
+
+
+@router.post("/duplicates/apply")
+def apply_duplicate_decision(req: ApplyDuplicateDecisionRequest, request: Request):
+    """
+    Applies deduplication remediation (keep_first, keep_last, drop_all_conflicting, etc.).
+    """
+    df, target_col, _, session = _get_active_df_and_target(request)
+    from doctor.issues.duplicates.fix import DuplicateFixer
+    fixer = DuplicateFixer()
+    params = req.params or {}
+    if "target_column" not in params and target_col:
+        params["target_column"] = target_col
+
+    decision = Decision(
+        issue_id="duplicates",
+        column=None,
+        option_id=req.option_id,
+        params=params,
+        decided_by=req.decided_by or "user",
+    )
+    fitted = fixer.fit(df, decision)
+    df_transformed = fixer.transform(df, fitted, is_test=False)
+    rows_dropped = len(df) - len(df_transformed)
+
+    if session:
+        session.df = df_transformed
+        session.decisions.append({
+            "issue_id": "duplicates",
+            "column": None,
+            "option_id": req.option_id,
+            "params": params,
+            "decided_by": req.decided_by or "user",
+            "fitted_params": fitted,
+        })
+
+    return {
+        "status": "success",
+        "applied_option": req.option_id,
+        "rows_dropped": rows_dropped,
+        "final_rows": len(df_transformed),
+        "message": f"Successfully applied '{req.option_id}'. Dropped {rows_dropped} rows.",
     }
 
 
@@ -282,7 +396,7 @@ def export_reproduce_pipeline(request: Request):
     if session and session.decisions:
         for dec_dict in session.decisions:
             dec = Decision(
-                issue_id="nulls",
+                issue_id=dec_dict.get("issue_id", "nulls"),
                 column=dec_dict.get("column"),
                 option_id=dec_dict.get("option_id", "leave"),
                 params=dec_dict.get("params", {}),
