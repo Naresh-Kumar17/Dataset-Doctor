@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from doctor.base import Decision
 from doctor.issues.nulls.fix import NullFixer
+from doctor.issues.duplicates.fix import DuplicateFixer
 
 
 @dataclass
@@ -35,6 +36,7 @@ class RemediationPipeline:
         self.decisions: List[Decision] = []
         self.steps: List[PipelineStep] = []
         self._null_fixer = NullFixer()
+        self._duplicate_fixer = DuplicateFixer()
 
     def record_decision(self, decision: Decision, train_df: Optional[pd.DataFrame] = None) -> PipelineStep:
         """
@@ -45,6 +47,8 @@ class RemediationPipeline:
         if train_df is not None:
             if decision.issue_id.startswith("null") or decision.issue_id == "null_fixer":
                 fitted = self._null_fixer.fit(train_df, decision)
+            elif decision.issue_id == "duplicates" or decision.issue_id.startswith("dup"):
+                fitted = self._duplicate_fixer.fit(train_df, decision)
 
         step = PipelineStep(
             step_id=f"step_{len(self.steps) + 1}",
@@ -65,7 +69,10 @@ class RemediationPipeline:
         df_curr = df.copy()
         for step in self.steps:
             if step.fitted_params:
-                df_curr = self._null_fixer.transform(df_curr, step.fitted_params, is_test=is_test)
+                if step.issue_id.startswith("null"):
+                    df_curr = self._null_fixer.transform(df_curr, step.fitted_params, is_test=is_test)
+                elif step.issue_id == "duplicates" or step.issue_id.startswith("dup"):
+                    df_curr = self._duplicate_fixer.transform(df_curr, step.fitted_params, is_test=is_test)
         return df_curr
 
     def get_decision_log(self) -> List[Dict[str, Any]]:
@@ -106,6 +113,10 @@ class RemediationPipeline:
             params = s.fitted_params
 
             lines.append(f'    # Step: {s.step_id} | Column: {col} | Method: {opt} | Decided by: {s.decided_by}')
+            if col and params.get("tokens_to_null"):
+                lines.append(f'    if {repr(col)} in data.columns:')
+                lines.append(f'        data[{repr(col)}] = data[{repr(col)}].replace({repr(params["tokens_to_null"])}, np.nan)')
+
             if opt == "drop_rows":
                 fallback = params.get("test_fallback")
                 fb_repr = repr(fallback)
@@ -138,6 +149,30 @@ class RemediationPipeline:
                     lines.append(f'        data[{repr(col)}] = data[{repr(col)}].interpolate(method="linear").ffill().bfill().fillna({repr(fallback)})')
                 else:
                     lines.append(f'        data[{repr(col)}] = data[{repr(col)}].ffill().bfill().fillna({repr(fallback)})')
+
+            elif opt == "keep_first":
+                lines.append('    if not is_test:')
+                lines.append('        data = data.drop_duplicates(keep="first")')
+
+            elif opt == "keep_last":
+                lines.append('    if not is_test:')
+                lines.append('        data = data.drop_duplicates(keep="last")')
+
+            elif opt == "drop_all_conflicting":
+                tgt = params.get("target_column")
+                lines.append(f'    if not is_test and {repr(tgt)} in data.columns and len(data.columns) > 1:')
+                lines.append(f'        feat_cols = [c for c in data.columns if c != {repr(tgt)}]')
+                lines.append('        feat_dups = data[data.duplicated(subset=feat_cols, keep=False)]')
+                lines.append('        if not feat_dups.empty:')
+                lines.append(f'            nunique = feat_dups.groupby(feat_cols)[{repr(tgt)}].transform("nunique")')
+                lines.append('            data = data.drop(index=feat_dups[nunique > 1].index)')
+
+            elif opt == "normalize_and_drop":
+                lines.append('    if not is_test:')
+                lines.append('        for c in data.columns:')
+                lines.append('            if data[c].dtype == object or pd.api.types.is_string_dtype(data[c].dtype):')
+                lines.append('                data[c] = data[c].astype(str).str.strip().str.lower()')
+                lines.append('        data = data.drop_duplicates(keep="first")')
 
             lines.append('')
 
