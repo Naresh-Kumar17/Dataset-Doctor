@@ -12,12 +12,10 @@ def test_registry_lists_all_planned_modules():
     for exp in expected:
         assert exp in module_ids
 
-    # In Phase 4, nulls and split_eval are gate_passed, while later modules remain not_built
+    # In Phase 5, nulls, split_eval, nulls_advisor, and duplicates are gate_passed, while later modules remain not_built
     for m in modules:
-        if m.id in ["nulls", "split_eval"]:
+        if m.id in ["nulls", "split_eval", "nulls_advisor", "duplicates"]:
             assert m.status in ["built", "gate_passed"]
-        elif m.id == "nulls_advisor":
-            assert m.status in ["not_built", "built", "gate_passed"]
         else:
             assert m.status == "not_built"
 
