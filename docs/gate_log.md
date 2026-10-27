@@ -145,3 +145,69 @@
 - Full project test suite: 12 unit tests in `tests/issues/test_outliers.py`, integration tests in `tests/test_web_routes.py` and `tests/test_decide_routes.py`.
 - RemediationPipeline and `reproduce.py` code generator updated with `set_to_null`, `clip_iqr`, `clip_percentile`, `log_transform`, and `drop_rows` transformations.
 - Complete regression suite: 100% PASS across all 7 benchmark modules.
+
+---
+
+## Future Gates Pipeline (Phases 9–21 Specifications)
+
+### Gate 9: Class Imbalance Detection (Scheduled)
+- Planted targets: 90/10, 99/1, multi-class with tiny minority (5%), and 50/50 balanced control.
+- Passes when 90/10, 99/1, and multi-class are flagged as high severity.
+- Stays strictly silent (0 flags) on balanced control.
+- Surfaces accuracy paradox warning and real-world prevalence prompt.
+
+### Gate 10: Class Imbalance Advisor & Remediation (Scheduled)
+- Advisor recommends `class_weight` or `random_oversample` based on 5-fold CV.
+- Strictly asserts test set row count and class ratio are unchanged by any fix.
+- Zero resampled rows appear in the test set.
+- SMOTE refuses unencoded categorical features with clear error/warning.
+
+### Gate 11: Data Leakage Detection (Scheduled)
+- Detects target copies, scalar multiples ($X \times 2$), ID-like sequence leaks, and post-event columns.
+- Legitimate strong features (correlation $\approx 0.70$) are not flagged as high severity.
+- 0 false alarms on `clean_control.csv`.
+- Time-ordered sequences trigger time-split warning.
+
+### Gate 12: Data Leakage Advisor & Prevention (Scheduled)
+- Recommends `drop_column` with explicit evidence.
+- Allows user acknowledgement override.
+- Column drops persist to `reproduce.py` without test leakage.
+
+### Gate 13: End-to-End Pipeline & Ordering Verification (Scheduled)
+- Enforces canonical causal execution order across all diagnostic remediations.
+- Inverting step order alters output on planted scenario, proving order enforcement.
+- Side-by-side before/after comparison with honest noise flagging.
+
+### Gate 14: Unified Data-to-Model Quality Assessment (Scheduled)
+- Cross-module risk matrix aggregates findings across all 6 domains.
+- Unresolved critical issues block model export without explicit confirmation.
+
+### Gate 15: Multi-Model Experimentation & Comparison (Scheduled)
+- Evaluates Random Forest, Logistic Regression, Decision Tree, and LightGBM against the same locked test split.
+- Multi-metric comparison matrix with minority metrics and overfitting flags.
+
+### Gate 16: Model Error Analysis & Diagnostics (Scheduled)
+- Confusion matrix and residual distribution derived strictly from model predictions.
+- Top prediction errors isolated with original feature contexts.
+
+### Gate 17: Model Explainability (Scheduled)
+- Permutation importance calculated on validation folds without test data snooping.
+- Non-causal disclaimers displayed on all attribution views.
+
+### Gate 18: Python Core SDK & CLI (Scheduled)
+- All CLI commands (`doctor profile`, `audit`, `evaluate`, `bench`) execute cleanly and return consistent JSON/text.
+- Headless Python SDK passes unit tests without web dependencies.
+
+### Gate 19: Full Experiment Manifest & Reproducibility (Scheduled)
+- `reproduce.py` runs standalone in clean Python environment.
+- Reproduces identical output DataFrame and test metrics within float tolerance.
+
+### Gate 20: Model Context Protocol (MCP) Server (Scheduled)
+- MCP tools discoverable and callable via standard JSON-RPC protocol.
+- Integration test validates full agentic workflow via MCP tools with test protection invariants.
+
+### Gate 21: Full System Integration & Release (Scheduled)
+- 100% pass on pytest regression suite across all 21 phases.
+- Real-world benchmark validation on Accident, Weather, and Kaggle datasets.
+- 50 MB dataset audit completes in under 2 minutes.
+

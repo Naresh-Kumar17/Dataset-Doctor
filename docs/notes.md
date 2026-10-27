@@ -34,3 +34,26 @@
 - **Rare-class extreme protection**: When the prediction target is rare (< 20% minority share, e.g. severe accidents or fraud), extreme feature values frequently contain the critical signal. Dropping these rows would eliminate minority target instances; the advisor explicitly protects them and recommends `leave`.
 - **Simplicity tie-breaker on CV noise**: Tree-based models (RandomForest, XGBoost, LightGBM) are invariant to monotonic scaling and extreme tail values. When 5-fold CV evaluation shows that score deltas between options are smaller than CV standard deviation, the advisor flags a "close call" and recommends `leave` as the simpler, non-destructive tie-breaker.
 - **Strict test partition integrity**: All clipping bounds and quantile limits are fitted strictly on `train_df`. When applied to test data, the same train-derived bounds are enforced, and test row counts are strictly preserved (0 test rows dropped).
+
+## Expanded Platform Architecture Notes (Phases 9–21 & Stages A–G)
+
+### 1. Evolution from Single-Model Profiler to Full ML Reliability Platform
+- **The Core Problem**: Profile tools report symptoms; they don't test remedies. Auto-cleaning tools mutate data silently without understanding model trade-offs.
+- **The Solution**: Dataset Doctor expands from a 11-phase MVP into a 21-phase end-to-end reliability platform structured into 7 distinct stages:
+  - **Stage A (Phases 0–13)**: Core Data Quality MVP (Nulls, Duplicates, Types, Outliers, Imbalance, Leakage, and Pipeline Ordering).
+  - **Stage B (Phase 14)**: Unified Data-to-Model Quality Assessment (Risk matrix connecting data defects to downstream model failures).
+  - **Stage C (Phase 15)**: Multi-Model Experimentation (Comparing RF, GBDT, DecisionTree, and Linear baselines on locked splits).
+  - **Stage D (Phases 16–17)**: Error Diagnostics & Attribution (Confusion matrices, error segments, and permutation importance).
+  - **Stage E (Phase 18)**: Headless Developer Tooling (Python Core SDK and terminal CLI).
+  - **Stage F (Phase 19)**: Comprehensive Experiment Manifest & Bit-for-Bit Reproducibility.
+  - **Stage G (Phases 20–21)**: MCP Server, Agent Collaboration & Production Deployment.
+
+### 2. Imbalance Remediation Hierarchy (Phases 9 & 10)
+- **Accuracy Illusion**: In 90/10 or 99/1 imbalance, majority prediction scores 90-99% accuracy while catching 0% of minority cases.
+- **Train-Only Resampling Invariant**: Resampling (RandomOverSampler, SMOTE, RandomUnderSampler) must NEVER be applied to the test partition. Test sets retain natural real-world class distributions.
+- **SMOTE Categorical Guard**: SMOTE interpolates vectors in continuous space. Applying SMOTE to unencoded categoricals generates invalid fractional codes. The fixer refuses unencoded categoricals and prompts one-hot/ordinal encoding first.
+
+### 3. Model Comparison & Diagnostic Safety (Phases 15–17)
+- **Zero Test Snooping**: Model selection and hyperparameter exploration must use training-fold cross-validation. The final test set is evaluated only once per experiment to avoid turning the test set into an implicit training set.
+- **Non-Causal Explanation Disclosure**: Feature importance and permutation attribution indicate associative predictive power, never real-world causal mechanisms.
+
