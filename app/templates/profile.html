@@ -8,7 +8,11 @@
 
   {% if target_locked %}
     <div class="banner success">
-      TARGET LOCKED: <strong>{{ target_column }}</strong> (Task: <strong>{{ task_type }}</strong>)
+      {% if target_column %}
+        TARGET LOCKED: <strong>{{ target_column }}</strong> (Task: <strong>{{ task_type }}</strong>)
+      {% else %}
+        TASK CONFIGURED: <strong>UNSUPERVISED / PURE DATA CLEANING</strong> (No Target Column)
+      {% endif %}
     </div>
   {% endif %}
 
@@ -35,14 +39,16 @@
   <!-- Target Column Selection Card -->
   <div class="card">
     <h3 class="card-title">TARGET CONFIGURATION</h3>
-    <form action="/target" method="post">
+    <form action="/target" method="post" id="targetConfigForm">
       <div class="target-config-grid">
         <div class="form-group" style="margin-bottom: 0;">
-
           <label class="form-label" for="target_column">Select Target Column</label>
-          <select class="form-select" id="target_column" name="target_column">
+          <select class="form-select" id="target_column" name="target_column" onchange="syncFromDropdown()">
+            <option value="__none__" {% if not target_column and task_type == 'unsupervised' %}selected{% endif %}>
+              None (Unsupervised / Data Cleaning)
+            </option>
             {% for col in profile.columns %}
-              <option value="{{ col.name }}" {% if (target_column or profile.suggested_target) == col.name %}selected{% endif %}>
+              <option value="{{ col.name }}" {% if (target_column or (profile.suggested_target and task_type != 'unsupervised')) == col.name %}selected{% endif %}>
                 {{ col.name }} ({{ col.inferred_type }}, {{ col.unique_count }} distinct)
               </option>
             {% endfor %}
@@ -53,12 +59,16 @@
           <label class="form-label">Task Type</label>
           <div class="radio-group">
             <label class="radio-label">
-              <input type="radio" name="task_type" value="classification" {% if (task_type or profile.suggested_task_type) == 'classification' %}checked{% endif %}>
+              <input type="radio" name="task_type" id="task_classification" value="classification" onchange="syncFromRadio('classification')" {% if (task_type or profile.suggested_task_type) == 'classification' and task_type != 'unsupervised' %}checked{% endif %}>
               Classification
             </label>
             <label class="radio-label">
-              <input type="radio" name="task_type" value="regression" {% if (task_type or profile.suggested_task_type) == 'regression' %}checked{% endif %}>
+              <input type="radio" name="task_type" id="task_regression" value="regression" onchange="syncFromRadio('regression')" {% if task_type == 'regression' %}checked{% endif %}>
               Regression
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="task_type" id="task_unsupervised" value="unsupervised" onchange="syncFromRadio('unsupervised')" {% if task_type == 'unsupervised' %}checked{% endif %}>
+              Unsupervised
             </label>
           </div>
         </div>
@@ -67,8 +77,51 @@
           <button type="submit" class="btn">LOCK TARGET</button>
         </div>
       </div>
+      <div id="unsupervisedHint" style="display: {% if task_type == 'unsupervised' or (not target_column and not task_type) %}block{% else %}none{% endif %}; margin-top: 10px; font-size: 0.88rem; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; padding: 6px 12px; border-radius: 4px;">
+        💡 <strong>Unsupervised / Data Cleaning:</strong> No target column needed. Cleaning rules, missing token normalization, and deduplication run across all features without training supervised models.
+      </div>
     </form>
   </div>
+
+  <script>
+    const DEFAULT_SUGGESTED_TARGET = "{{ profile.suggested_target or '' }}";
+
+    function syncFromDropdown() {
+      const select = document.getElementById('target_column');
+      const hint = document.getElementById('unsupervisedHint');
+      if (select.value === '__none__') {
+        document.getElementById('task_unsupervised').checked = true;
+        document.getElementById('task_classification').checked = false;
+        document.getElementById('task_regression').checked = false;
+        if (hint) hint.style.display = 'block';
+      } else {
+        if (hint) hint.style.display = 'none';
+        const unsuperRadio = document.getElementById('task_unsupervised');
+        if (unsuperRadio.checked) {
+          document.getElementById('task_classification').checked = true;
+          unsuperRadio.checked = false;
+        }
+      }
+    }
+
+    function syncFromRadio(type) {
+      const select = document.getElementById('target_column');
+      const hint = document.getElementById('unsupervisedHint');
+      if (type === 'unsupervised') {
+        select.value = '__none__';
+        if (hint) hint.style.display = 'block';
+      } else {
+        if (hint) hint.style.display = 'none';
+        if (select.value === '__none__') {
+          if (DEFAULT_SUGGESTED_TARGET && select.querySelector(`option[value="${DEFAULT_SUGGESTED_TARGET}"]`)) {
+            select.value = DEFAULT_SUGGESTED_TARGET;
+          } else if (select.options.length > 1) {
+            select.selectedIndex = 1;
+          }
+        }
+      }
+    }
+  </script>
 
   <!-- Column Details Table -->
   <div class="card">
