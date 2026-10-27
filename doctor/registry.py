@@ -41,7 +41,7 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
         name="Null Advisor & Fixer",
         phase=4,
         description="Rule-based shortlist, 5-fold CV measurement, decision cards, leak-free transformation, and reproduce.py pipeline.",
-        status="not_built",
+        status="gate_passed",
     ),
 
     "duplicates": ModuleInfo(
@@ -49,7 +49,7 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
         name="Duplicates",
         phase=5,
         description="Find exact duplicate rows, near-duplicates, conflicting labels, and pre-balanced files.",
-        status="not_built",
+        status="gate_passed",
     ),
     "types": ModuleInfo(
         id="types",
