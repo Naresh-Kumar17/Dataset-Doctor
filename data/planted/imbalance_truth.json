@@ -1,0 +1,34 @@
+{
+  "module": "imbalance",
+  "rows": 1000,
+  "planted": {
+    "target_90_10": {
+      "column": "target_90_10",
+      "minority_share": 0.1,
+      "imbalance_ratio": 9.0,
+      "expected_severity": "high",
+      "is_imbalanced": true
+    },
+    "target_99_1": {
+      "column": "target_99_1",
+      "minority_share": 0.01,
+      "imbalance_ratio": 99.0,
+      "expected_severity": "high",
+      "is_imbalanced": true
+    },
+    "target_multiclass": {
+      "column": "target_multiclass",
+      "minority_share": 0.05,
+      "imbalance_ratio": 14.0,
+      "expected_severity": "high",
+      "is_imbalanced": true
+    },
+    "target_balanced": {
+      "column": "target_balanced",
+      "minority_share": 0.5,
+      "imbalance_ratio": 1.0,
+      "expected_severity": "none",
+      "is_imbalanced": false
+    }
+  }
+}

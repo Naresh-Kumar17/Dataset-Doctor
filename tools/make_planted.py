@@ -474,6 +474,93 @@ def make_outliers_planted():
     return outliers_csv, truth_path
 
 
+def make_imbalance_planted():
+    """
+    Creates data/planted/imbalance.csv and truth JSON following IMPLEMENTATION.md Gate 9.
+    Planted scenarios:
+    - target_90_10: 90% class 0, 10% class 1 (minority share = 0.10, ratio = 9.0, severity = high)
+    - target_99_1: 99% class 0, 1% class 1 (minority share = 0.01, ratio = 99.0, severity = high)
+    - target_multiclass: 70% A, 25% B, 5% C (minority share = 0.05, severity = high)
+    - target_balanced: 50% class 0, 50% class 1 (control: balanced, 0 issues)
+    - feature_cat: unencoded categorical string column (tier_1, tier_2, tier_3) to test SMOTE safety
+    """
+    np.random.seed(42)
+    n_rows = 1000
+
+    # 1. Informative features
+    f1 = np.random.normal(0, 1, size=n_rows)
+    f2 = np.random.normal(5, 2, size=n_rows)
+    f_cat = np.random.choice(["tier_1", "tier_2", "tier_3"], size=n_rows)
+
+    # 2. Planted targets
+    # 90/10 target: 900 zeros, 100 ones
+    target_90_10 = np.array([0] * 900 + [1] * 100)
+    # 99/1 target: 990 zeros, 10 ones
+    target_99_1 = np.array([0] * 990 + [1] * 10)
+    # Multiclass target: 700 A, 250 B, 50 C
+    target_multiclass = np.array(["A"] * 700 + ["B"] * 250 + ["C"] * 50)
+    # Balanced control: 500 zeros, 500 ones
+    target_balanced = np.array([0] * 500 + [1] * 500)
+
+    # Permute indices together so features stay matched
+    perm = np.random.permutation(n_rows)
+
+    df_imbalance = pd.DataFrame({
+        "feature_1": f1[perm],
+        "feature_2": f2[perm],
+        "feature_cat": f_cat[perm],
+        "target_90_10": target_90_10[perm],
+        "target_99_1": target_99_1[perm],
+        "target_multiclass": target_multiclass[perm],
+        "target_balanced": target_balanced[perm],
+    })
+
+    imbalance_csv = PLANTED_DIR / "imbalance.csv"
+    df_imbalance.to_csv(imbalance_csv, index=False)
+
+    truth = {
+        "module": "imbalance",
+        "rows": n_rows,
+        "planted": {
+            "target_90_10": {
+                "column": "target_90_10",
+                "minority_share": 0.10,
+                "imbalance_ratio": 9.0,
+                "expected_severity": "high",
+                "is_imbalanced": True,
+            },
+            "target_99_1": {
+                "column": "target_99_1",
+                "minority_share": 0.01,
+                "imbalance_ratio": 99.0,
+                "expected_severity": "high",
+                "is_imbalanced": True,
+            },
+            "target_multiclass": {
+                "column": "target_multiclass",
+                "minority_share": 0.05,
+                "imbalance_ratio": 14.0,
+                "expected_severity": "high",
+                "is_imbalanced": True,
+            },
+            "target_balanced": {
+                "column": "target_balanced",
+                "minority_share": 0.50,
+                "imbalance_ratio": 1.0,
+                "expected_severity": "none",
+                "is_imbalanced": False,
+            },
+        },
+    }
+
+    truth_path = PLANTED_DIR / "imbalance_truth.json"
+    with open(truth_path, "w", encoding="utf-8") as f:
+        json.dump(truth, f, indent=2, default=lambda o: int(o) if isinstance(o, (np.integer, int)) else float(o))
+
+    print(f"Created {imbalance_csv.name} ({n_rows} rows) and {truth_path.name}")
+    return imbalance_csv, truth_path
+
+
 def main():
     print("Generating planted datasets...")
     make_clean_control()
@@ -482,10 +569,12 @@ def main():
     make_prebalanced_planted()
     make_types_planted()
     make_outliers_planted()
+    make_imbalance_planted()
     print("All planted datasets successfully generated.")
 
 
 if __name__ == "__main__":
     main()
+
 
 
