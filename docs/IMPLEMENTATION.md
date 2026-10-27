@@ -502,140 +502,326 @@ Plant 5 scenarios with a known right answer:
 
 ---
 
-### Phase 9: Imbalance (about 4 days)
+### Phase 9: Class Imbalance Detection & Diagnosis (about 3 days)
 
-**Files:** `issues/imbalance/detect.py`, `advise.py`, `fix.py`, `explain.py`
+**Files:** `doctor/issues/imbalance/detect.py`, `explain.py`, `tools/make_planted.py`
 
-**Detect:** class shares, minority share, imbalance ratio. Flag high under 10%, medium under 20%. Also checks that the dataset share may not be the real-world share (asks the user: "is 15% the true rate?").
-
-**Fix options (train only)** `class_weight`, `random_oversample`, `smote`, `random_undersample`, `threshold_tuning`, `leave`
-**Advise:** test each by CV on train, compare on minority recall, precision, F1, PR-AUC. Warn that oversampling changes predicted probabilities. Show the trade-off (recall up, precision down). The user decides.
+**Detect (Classification Targets Only)**
+- Class counts, class distributions, and minority class share.
+- Imbalance ratio calculation: `majority_count / minority_count`.
+- Severity classification:
+  - `high`: Minority class share $< 10\%$ (ratio $\ge 9:1$).
+  - `medium`: Minority class share $< 20\%$ (ratio $\ge 4:1$).
+  - Stays silent on balanced datasets (minority share $\ge 20\%$).
+- Multi-class imbalance detection (identifies any minority class $< 10\%$).
+- User domain prompt: "Is $X\%$ the true rate in the real world?"
+- Explanations explicitly illustrate the "Accuracy Paradox": a naive majority baseline model achieves high accuracy while completely failing on minority instances.
 
 **Gate 9**
-- [ ] Planted 90/10, 99/1, multi-class with one tiny class, and a balanced control. Flags correct ones, silent on balanced.
-- [ ] After any fix, test class ratio is unchanged (assert).
-- [ ] No resampled row appears in test.
-- [ ] Accident data: tool shows high accuracy but low minority recall at baseline, and an improvement in recall with at least one fix. Numbers match your Phase 0 redo.
-- [ ] SMOTE refuses or warns on data with unencoded categoricals instead of producing garbage.
+- [ ] Planted scenarios: 90/10, 99/1, multi-class with tiny class (5%), and 50/50 balanced control.
+- [ ] Correctly flags 90/10, 99/1, and multi-class as high severity.
+- [ ] Strictly silent (0 flags) on balanced control.
+- [ ] Plain-English explanation exposes accuracy paradox and real-world prevalence question.
 
 ---
 
-### Phase 10: Leakage (about 4 days)
+### Phase 10: Class Imbalance Advisor & Remediation (about 4 days)
 
-**Files:** `issues/leakage/detect.py`, `advise.py`, `fix.py`, `explain.py`
+**Files:** `doctor/issues/imbalance/advise.py`, `fix.py`, `doctor/pipeline.py`
 
-**Detect**
-- Single-feature score: train a tiny model on one column alone; flag a near-perfect score.
-- Very high correlation with the target.
-- Column identical or a simple transform of the target (copy, x2, relabel).
-- ID-like or index-like columns that predict the target by row order.
-- Column names that suggest the future (`outcome`, `result`, `status_after`, `final_`): `possible` only.
-- Time data: random split used on time-ordered rows (warning, recommends time-ordered split).
+**Remediation Options (Train Partition Only)**
+- `class_weight`: Uses loss penalty weighting (`class_weight="balanced"`). Preserves true row count and natural calibration.
+- `random_oversample`: Samples minority rows with replacement on training partition.
+- `smote`: Synthetic minority oversampling via nearest neighbor interpolation. Requires encoded numeric features.
+- `random_undersample`: Discards majority rows down to minority ratio. Fast, but drops majority data.
+- `threshold_tuning`: Adjusts classification decision threshold below 0.5 without changing rows.
+- `leave`: Retains natural class proportions when calibration is paramount.
 
-**Fix options** `drop_column`, `keep_and_ignore_warning`, `leave`. The user decides. Never auto-drop.
+**Safety Invariants & Measurement**
+- 5-fold Stratified CV on training data only. Evaluates minority Recall, Precision, F1, and PR-AUC.
+- Trade-off visibility: Highlights when Recall increases come at the expense of Precision.
+- Simplicity tie-breaker: Recommends `class_weight` or `leave` when score delta is within noise.
+- **SMOTE Guard**: Refuses to run on unencoded categorical/object columns, instructing user to encode first.
+- **Test Set Row & Ratio Invariant**: Test set rows and class distributions are strictly unchanged. Resampling never touches test.
 
 **Gate 10**
-- [ ] Planted: target copy, target x2 plus noise, ID-like leak, and an after-the-fact column. All flagged.
-- [ ] A legitimately strong feature (correlation about 0.7) is not flagged as high.
-- [ ] 0 high flags on the control.
-- [ ] Every flag shows the evidence number that triggered it.
-- [ ] Time-ordered planted data triggers the time-split warning.
+- [ ] Planted 90/10 and 99/1: Advisor recommends `class_weight` or `random_oversample`.
+- [ ] After any fix, test class ratio is unchanged (asserted).
+- [ ] 0 resampled rows appear in test partition.
+- [ ] SMOTE raises a clear warning on unencoded categorical columns instead of generating garbage.
+- [ ] On road-accident data, shows high baseline accuracy but low minority recall, with measured improvement from remediation.
 
 ---
 
-### Phase 11: Full pipeline, report, deploy (about 5-6 days)
+### Phase 11: Data Leakage Detection (about 3 days)
 
-**Files:** `doctor/pipeline.py`, `doctor/report.py`, `app/routes/report.py`, `templates/results.html`
+**Files:** `doctor/issues/leakage/detect.py`, `explain.py`, `tools/make_planted.py`
 
-**Pipeline order (important)**
-1. Read and normalize hidden-null tokens to NaN (deterministic).
-2. Types (deterministic conversions).
-3. Duplicates.
-4. Drop rows with a missing target. **Lock the split.**
-5. Impossible outlier values set to null.
-6. Nulls (user decisions, fit on train).
-7. Extreme outlier handling.
-8. Leakage decisions (drop columns).
-9. Imbalance fix (train only).
-10. Final model and metrics on the untouched test set.
-
-**Build**
-- Combined before/after with the noise label for the whole pipeline.
-- Report (Markdown or HTML): issues found, every decision and who made it, metrics before and after, limits.
-- Export: cleaned CSV and `reproduce.py`, a plain script that repeats the accepted decisions.
-- Deploy to Render, Railway or Hugging Face Spaces with a lower file limit.
+**Detection Heuristics**
+- Single-feature predictive power: Fast single-column classifier achieving near-perfect score (AUC/F1 $> 0.95$).
+- Target duplication: Features identical to target, scalar multiples ($X \times 2$), or trivial monotonic transformations.
+- Index/ID leaks: High cardinality identifier columns that correlate with row order.
+- Future/Post-event indicators: Column names containing post-event markers (`outcome`, `result`, `status_after`, `payout`, `discharged`).
+- Time-order inversion: Timestamp or ordered sequence data evaluated with random shuffle instead of chronological split.
 
 **Gate 11**
-- [ ] On the accident data, full run reproduces the Phase 0 numbers within noise.
-- [ ] `reproduce.py` run on the original file gives the same cleaned file (compare hashes).
-- [ ] Order test: changing the order of steps 5 and 6 changes the result in a planted case, proving the order matters and is enforced.
-- [ ] End to end on 5 datasets (accident, weather, 3 Kaggle) with no crash.
-- [ ] 50 MB file completes in under 2 minutes.
-- [ ] A new person can upload a file and finish a run without help (ask one friend; write down where they got stuck).
+- [ ] Planted: target copy, $X \times 2$ transform, sequential ID leak, and post-event column. All 4 detected.
+- [ ] Legitimate strong feature (correlation $\approx 0.70$) is not flagged as high severity.
+- [ ] 0 false alarms on `clean_control.csv`.
+- [ ] Time-ordered synthetic sequence triggers time-split warning.
 
 ---
 
-## 8. Phase tracker (copy to README or keep here)
+### Phase 12: Data Leakage Advisor & Prevention (about 3 days)
 
-| Phase | Name | Est. days | Gate result | Date |
-|-------|------|-----------|-------------|------|
-| 0 | Setup + evidence | 5-7 | PASS | 2026-10-19 |
-| 1 | GUI shell + loader + profile | 3-4 | PASS | 2026-10-19 |
-| 2 | Null detection | 3-4 | PASS | 2026-10-21 |
-| 3 | Split + evaluation engine | 4-5 | | |
+**Files:** `doctor/issues/leakage/advise.py`, `fix.py`, `doctor/pipeline.py`
 
-| 4 | Null advisor + fixer | 5-6 | | |
-| 5 | Duplicates | 3 | | |
-| 6 | Data types | 4 | | |
-| 7 | Outlier detection | 3 | | |
-| 8 | Outlier advisor + fixer | 3 | | |
-| 9 | Imbalance | 4 | | |
-| 10 | Leakage | 4 | | |
-| 11 | Pipeline, report, deploy | 5-6 | | |
+**Remediation Options**
+- `drop_column`: Removes the leaking feature from training and test partitions.
+- `time_ordered_split`: Reconfigures split engine to use chronological split instead of random shuffle.
+- `keep_and_monitor`: Keeps column with explicit user acknowledgement. Never auto-drops columns silently.
 
-## 9. API routes
+**Gate 12**
+- [ ] Recommends `drop_column` for target copies and ID leaks with explicit evidence score.
+- [ ] User override allows keeping column with recorded warning in audit log.
+- [ ] Exported `reproduce.py` includes column drop statements without test leakage.
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | / | upload page |
-| POST | /upload | save CSV, create session |
-| GET | /profile | profile and preview |
-| POST | /target | set target column and task type |
-| GET | /module/{name} | module page: detect results |
-| POST | /module/{name}/advise | run advisor, return recommendation and measured table |
-| GET | /module/{name}/preview | before/after sample rows |
-| POST | /decide | save a decision (accept, change, skip) |
-| POST | /apply | apply all decisions in pipeline order |
-| GET | /compare | before/after metrics |
-| GET | /bench | gate results, planted vs found |
-| POST | /bench/run/{name} | run a gate from the GUI |
-| GET | /report | download report |
-| GET | /cleaned.csv | download cleaned data |
-| GET | /reproduce.py | download the reproducible script |
+---
 
-Sessions are in memory with a random ID in a cookie. No database. Uploaded files are deleted after 1 hour.
+### Phase 13: End-to-End Remediation Pipeline & Ordering Verification (about 4 days)
 
-## 10. Testing
+**Files:** `doctor/pipeline.py`, `doctor/compare.py`, `app/routes/decide.py`, `templates/compare.html`
 
-- Unit tests per module in `tests/issues/`.
-- Gate runner tests use `data/planted/`.
-- Regression tests: oversample-before-split score is higher than split-first (Phase 3). If this flips, the engine is broken.
-- Fixer tests assert: the test set is never resampled, never loses rows, never gets values learned from itself.
-- Run: `pytest -q` and `python -m doctor.bench --all`
+**Canonical Causal Execution Order**
+1. Read & normalize hidden null tokens to NaN (deterministic).
+2. Type conversions (numeric, dates, booleans).
+3. Deduplication (exact, conflicting rows).
+4. Drop rows with missing target. **Lock train/test split.**
+5. Impossible outlier values set to null.
+6. Null imputation (train-learned medians/modes).
+7. Tail outlier clipping (train-derived bounds).
+8. Leakage column drops.
+9. Imbalance remediation (train-only class weights or resampling).
+10. Final model evaluation on untouched test set.
 
-## 11. Known weak points (show them in the UI)
+**Gate 13**
+- [ ] Order enforcement test: Inverting order of steps alters output on planted scenario, proving order enforcement.
+- [ ] Full pipeline run reproduces baseline scores on accident dataset.
+- [ ] `compare.py` produces honest side-by-side metric diff with noise flags.
 
-- Rule-based advice is a starting guess. Only the measured scores are evidence, and they are noisy on small data.
-- One fixed model does not represent every model. A fix that helps a random forest may not help a linear model.
-- Leakage rules miss subtle leaks.
-- SMOTE on mixed categorical data can create nonsense rows.
-- Planted data only tests problems you thought of. Real files will break the tool in new ways. That is why Phase 11 uses real datasets.
+---
 
-## 12. Definition of done (MVP)
+### Phase 14: Unified Data-to-Model Quality Assessment & Risk Matrix (about 4 days)
 
-- [ ] Gates 0 to 11 all PASS and logged in `docs/gate_log.md`
-- [ ] Every issue type has separate detect, advise and fix files
-- [ ] The user is asked before any change is applied
-- [ ] Test set never touched by fixes (asserted in tests)
-- [ ] Accident result documented in README
-- [ ] Deployed link in README
+**Files:** `doctor/quality.py`, `app/routes/quality.py`, `templates/quality.html`
+
+**Unified Assessment Engine**
+- Synthesizes findings across all 6 diagnostic domains into a comprehensive Risk Matrix.
+- Maps data quality defects directly to machine learning consequences:
+  - Nulls $\to$ Data loss & imputation bias.
+  - Duplicates $\to$ Optimistic test score inflation & conflicting signals.
+  - Types $\to$ Silent categorical misinterpretation & date parsing bugs.
+  - Outliers $\to$ Extreme gradient distortion & leverage points.
+  - Imbalance $\to$ Accuracy illusion & minority blindspots.
+  - Leakage $\to$ Production failure & unrealistic offline metrics.
+- Dimension scores: Completeness, Uniqueness, Validity, Distributional Health, Evaluation Integrity.
+- Unresolved issues tracker: Warns if user attempts model export with unresolved critical risks.
+
+**Gate 14**
+- [ ] Accurately aggregates findings from all modules without redundant detection passes.
+- [ ] High-risk issues block production export unless explicitly acknowledged.
+- [ ] Tested on 5 diverse datasets with consistent risk matrix generation.
+
+---
+
+### Phase 15: Multi-Model Experimentation & Baseline Comparison (about 5 days)
+
+**Files:** `doctor/models.py`, `doctor/experiment.py`, `app/routes/experiments.py`, `templates/experiments.html`
+
+**Model Comparison Engine**
+- Extends fixed RandomForest baseline with standardized benchmark models:
+  - Logistic Regression / Ridge Regressor (linear benchmark).
+  - Decision Tree (interpretable baseline).
+  - Gradient Boosted Trees (LightGBM / HistGradientBoosting).
+- Evaluates all models against the **exact same locked train/test split** and fitted preprocessing pipeline.
+- Multi-Metric Comparison Matrix: Ranks models by task-appropriate metrics (Recall, Precision, F1, PR-AUC, ROC-AUC, MAE, RMSE, R²).
+- Overfitting Detection: Highlights large train-vs-test metric gaps.
+
+**Gate 15**
+- [ ] All candidate models trained strictly on train partition; evaluated on locked test set.
+- [ ] Imbalance guard enforces minority metrics for all classifiers.
+- [ ] Small sample warning triggered when $N < 500$ across all model comparisons.
+
+---
+
+### Phase 16: Model Error Analysis & Diagnostics (about 4 days)
+
+**Files:** `doctor/diagnostics.py`, `app/routes/diagnostics.py`, `templates/diagnostics.html`
+
+**Diagnostic Visualizations & Analysis**
+- Classification:
+  - Confusion Matrix with raw counts and normalized proportions.
+  - Per-class Precision, Recall, F1 breakdown.
+  - Precision-Recall curves and ROC curves.
+  - Inspection of frequently confused class pairs.
+- Regression:
+  - Actual vs. Predicted scatter plot.
+  - Residual distribution & error histogram.
+  - Identification of worst-prediction outlier segments.
+
+**Gate 16**
+- [ ] Confusion matrix accurately calculated from true model predictions.
+- [ ] Diagnostics derived strictly from validation fold or final test set (no data snooping).
+- [ ] Residual outliers identified and linked back to original input features.
+
+---
+
+### Phase 17: Model Explainability & Feature Attribution (about 3 days)
+
+**Files:** `doctor/explainability.py`, `app/routes/explainability.py`, `templates/explainability.html`
+
+**Attribution Engine**
+- Native tree feature importance (impurity-based) with high-cardinality inflation warnings.
+- Permutation importance computed on training validation folds.
+- Plain-English feature explanations with non-causal disclosures ("Correlated features do not establish causation").
+
+**Gate 17**
+- [ ] Permutation importance executed on validation folds without test data snooping.
+- [ ] Clear disclaimer displayed on all explainability views.
+- [ ] Feature rankings match ground-truth planted predictive features.
+
+---
+
+### Phase 18: Python Core SDK & Command-Line Interface (about 4 days)
+
+**Files:** `doctor/api.py`, `doctor/cli.py`, `setup.py`, `tests/test_cli.py`
+
+**Public SDK & CLI**
+- Documented Python API (`doctor.load`, `doctor.profile`, `doctor.audit`, `doctor.evaluate`, `doctor.pipeline`).
+- Terminal CLI commands:
+  - `doctor profile <file.csv>`
+  - `doctor audit <file.csv> --target <col>`
+  - `doctor evaluate <file.csv> --target <col>`
+  - `doctor bench --all`
+- Shared engine: CLI and SDK reuse identical logic as web application without code duplication.
+
+**Gate 18**
+- [ ] All CLI commands execute cleanly and return consistent JSON / formatted outputs.
+- [ ] Python SDK workflows pass integration tests without web server dependencies.
+
+---
+
+### Phase 19: Full Experiment Manifest & Bit-for-Bit Reproducibility (about 4 days)
+
+**Files:** `doctor/manifest.py`, `doctor/export.py`, `app/routes/export.py`
+
+**Comprehensive Artifact Generation**
+- `manifest.json`: Machine-readable metadata capturing dataset hash, schema, split configuration, decision log, fitted pipeline parameters, model hyperparameters, and final metrics.
+- Extended `reproduce.py`: Standalone script reproducing data cleaning, train/test split, model fitting, and evaluation.
+- Cleaned CSV download with transformation audit headers.
+- Automated Bit-for-Bit Reproducibility Test: Running `reproduce.py` reproduces identical output DataFrame and test metrics within float tolerance.
+
+**Gate 19**
+- [ ] `reproduce.py` executes standalone in clean Python environment without `doctor` package installed.
+- [ ] Generated clean dataset hash matches Dataset Doctor in-memory DataFrame hash.
+- [ ] `manifest.json` conforms to JSON schema specification.
+
+---
+
+### Phase 20: Model Context Protocol (MCP) Server & Agent Tooling (about 3 days)
+
+**Files:** `doctor/mcp.py`, `tests/test_mcp.py`
+
+**MCP Server Implementation**
+- Standard JSON-RPC stdio MCP server for Antigravity, Claude Desktop, and Cursor.
+- Declares core tools: `doctor_load_dataset`, `doctor_audit_quality`, `doctor_get_recommendations`, `doctor_apply_remediation`, `doctor_evaluate_baseline`, `doctor_export_reproduce`.
+- Enforces agent safety invariants: Test set remains strictly immutable; destructive transformations require explicit approval.
+
+**Gate 20**
+- [ ] MCP tools discoverable and callable via standard JSON-RPC protocol.
+- [ ] Automated integration test validates full agentic workflow via MCP tools.
+
+---
+
+### Phase 21: Full System Integration, Real-World Validation & Deployment (about 5 days)
+
+**Files:** `docs/gate_log.md`, `README.md`, `Dockerfile`, `render.yaml`
+
+**Production Hardening & Deployment**
+- End-to-end testing across 5 real-world datasets (Accident severity, Weather forecasting, and 3 Kaggle benchmarks).
+- Performance audit: 50 MB dataset completes full quality audit in under 2 minutes.
+- Production containerization & live deployment verification on Render / Railway.
+- Comprehensive user documentation and walkthrough guides.
+
+**Gate 21**
+- [ ] Full regression test suite passing 100% across all 21 phases.
+- [ ] Zero memory leaks on large dataset processing.
+- [ ] Live demo operational with active health check endpoint.
+
+---
+
+## 8. Master Phase Tracker
+
+| Phase | Subsystem / Milestone | Stage | Gate Status | Target / Pass Date |
+| :---: | :--- | :---: | :---: | :---: |
+| **0** | Setup, Evidence Baseline & Planted Data Generator | Stage A | **PASS** | 2026-10-19 |
+| **1** | Web GUI Shell, Loader, Profile & Test Bench | Stage A | **PASS** | 2026-10-19 |
+| **2** | Null / Missing Values Detection | Stage A | **PASS** | 2026-10-21 |
+| **3** | Split & Evaluation Engine | Stage A | **PASS** | 2026-10-21 |
+| **4** | Null Advisor & Fixer (Interactive) | Stage A | **PASS** | 2026-10-23 |
+| **5** | Duplicates Detection, Advice & Fixer | Stage A | **PASS** | 2026-10-26 |
+| **6** | Data Types Detection, Advice & Fixer | Stage A | **PASS** | 2026-11-02 |
+| **7** | Outlier Detection (Impossible Values & MAD) | Stage A | **PASS** | 2026-11-07 |
+| **8** | Outlier Advisor & Fixer (Clipping & Preservation) | Stage A | **PASS** | 2026-11-12 |
+| **9** | Class Imbalance Detection & Diagnosis | Stage A | **PLANNED** | Scheduled |
+| **10** | Class Imbalance Advisor & Remediation | Stage A | **PLANNED** | Scheduled |
+| **11** | Data Leakage Detection | Stage A | **PLANNED** | Scheduled |
+| **12** | Data Leakage Advisor & Prevention | Stage A | **PLANNED** | Scheduled |
+| **13** | End-to-End Remediation Pipeline & Ordering | Stage A | **PLANNED** | Scheduled |
+| **14** | Unified Quality Assessment & Risk Matrix | Stage B | **PLANNED** | Scheduled |
+| **15** | Multi-Model Experimentation & Comparison | Stage C | **PLANNED** | Scheduled |
+| **16** | Model Error Analysis & Diagnostics | Stage D | **PLANNED** | Scheduled |
+| **17** | Model Explainability (Permutation Importance) | Stage D | **PLANNED** | Scheduled |
+| **18** | Python Core SDK & Command-Line Interface (CLI) | Stage E | **PLANNED** | Scheduled |
+| **19** | Experiment Manifest & Bit-for-Bit Reproducibility | Stage F | **PLANNED** | Scheduled |
+| **20** | Model Context Protocol (MCP) Server | Stage G | **PLANNED** | Scheduled |
+| **21** | Full System Integration & Production Release | Stage G | **PLANNED** | Scheduled |
+
+---
+
+## 9. Comprehensive API Routes Matrix
+
+| Method | Path | Subsystem | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/` | Web Shell | Upload page and landing dashboard |
+| `POST` | `/upload` | Ingestion | Save CSV stream, validate MIME/size, initialize session |
+| `GET` | `/profile` | Profiler | Profile statistics, schema inspection, and column preview |
+| `POST` | `/target` | Split | Lock target column, task type, and stratified partitions |
+| `GET` | `/module/{name}` | Workbench | Module diagnostic view with evidence tables and stats |
+| `POST` | `/decide/{name}/apply` | Remediation | Fit transformer on train and append step to pipeline |
+| `GET` | `/quality` | Unified View | Comprehensive Quality Assessment & Risk Matrix (Phase 14) |
+| `GET` | `/experiments` | Models | Multi-model evaluation and comparison matrix (Phase 15) |
+| `GET` | `/diagnostics` | Diagnostics | Confusion matrix, residual error plots (Phase 16) |
+| `GET` | `/explainability` | Attribution | Feature importance and permutation attribution (Phase 17) |
+| `GET` | `/compare` | Comparison | Side-by-side before vs after metrics on locked test set |
+| `GET` | `/bench` | Test Bench | Interactive planted vs found gate verification dashboard |
+| `POST` | `/bench/run/{name}` | Test Bench | Execute on-demand automated benchmark gate |
+| `GET` | `/report` | Artifacts | Download Markdown / HTML executive quality report |
+| `GET` | `/cleaned.csv` | Artifacts | Download cleaned CSV with transformation audit headers |
+| `GET` | `/reproduce.py` | Artifacts | Download standalone pipeline reproduction script |
+| `GET` | `/manifest.json` | Artifacts | Download machine-readable experiment manifest (Phase 19) |
+
+---
+
+## 10. Automated Testing & Reliability Invariants
+
+1. **Test Set Isolation**: The test set is completely shielded from learning. Learned parameters (imputation values, clipping bounds, encoders, scalers) derive strictly from training data.
+2. **Zero Test Row Loss**: Data cleaning operations may drop rows from the training set, but test set row counts and class distributions are strictly preserved.
+3. **Planted-Data Ground Truth**: Every diagnostic module must pass its gate on deterministic planted data with $100\%$ recall of planted defects and $0$ false alarms on `clean_control.csv`.
+4. **Noise Guard**: Evaluation score differences within the cross-validation standard deviation must be explicitly flagged as "close call / within noise".
+5. **Execution Verification**: Run full test and benchmark suite via:
+   ```bash
+   pytest tests/
+   python -m doctor.bench --all
+   ```
+

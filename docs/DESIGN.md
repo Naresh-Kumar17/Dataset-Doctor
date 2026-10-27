@@ -237,6 +237,53 @@ Built in Phase 1, grows with every phase.
 - Buttons: "DOWNLOAD REPORT", "DOWNLOAD CLEANED CSV", "DOWNLOAD REPRODUCE.PY".
 - Footer note listing known limits.
 
+### Screen 8: Unified Quality & Risk Overview Dashboard (`/quality`)
+- High-level executive overview synthesizing findings across all 6 diagnostic domains.
+- Dimension scorecards:
+  - Completeness (missing cells, row loss)
+  - Uniqueness (exact, near, conflicting duplicate rows)
+  - Type Validity (text numbers, date formats, constants)
+  - Distributional Health (impossible values, MAD tails, skew)
+  - Class Balance (minority share, accuracy illusion warnings)
+  - Evaluation Integrity (leakage risk, target copies, time-split validity)
+- Unresolved Issues Critical Banner: Pink card listing any high-severity issues not yet addressed by an approved decision.
+- Direct 1-click links to jump into specific module workbenches.
+
+### Screen 9: Multi-Model Experimentation & Comparison Matrix (`/experiments`)
+- Side-by-side leaderboard of candidate models evaluated on the exact same locked test set.
+- Candidate models:
+  - Fixed Baseline: Random Forest (200 trees)
+  - Interpretable Linear: Logistic Regression (L2) / Ridge
+  - Shallow Tree: Decision Tree (max_depth=5)
+  - High Performance: Gradient Boosted Trees (LightGBM)
+- Metrics comparison grid: Recall (minority), Precision (minority), F1, PR-AUC, ROC-AUC, Accuracy, Latency (ms).
+- Highlight chips: Best metric in green, within-noise ties in yellow, overfitting warnings in pink (`train_score - test_score > 0.15`).
+
+### Screen 10: Model Error Analysis & Diagnostics (`/diagnostics`)
+- Neo-Brutalist Confusion Matrix:
+  - Big bold black borders, high contrast cell fills.
+  - Actual classes on Y-axis, Predicted classes on X-axis.
+  - Raw counts and per-class percentages.
+- Precision-Recall Curve: Discrete stepped plot emphasizing threshold trade-offs.
+- Error Investigation Table: Interactive list of top 20 worst prediction errors with row features, ground truth, and predicted probabilities.
+
+### Screen 11: Model Explainability & Feature Attribution (`/explainability`)
+- Permutation Importance Bar Chart:
+  - Horizontal solid black-bordered bars with purple fills.
+  - Metric delta $\pm$ standard error on validation folds.
+- Native Impurity Importance comparison (with disclaimer note on high-cardinality bias).
+- Plain-English Non-Causal Disclaimer:
+  - "DISCLAIMER: High feature importance indicates predictive correlation in this dataset; it does not prove real-world causality."
+
+### Screen 12: Experiment Manifest & Reproducibility Export (`/export`)
+- Dataset Fingerprint Card: SHA-256 hash of raw CSV, row count, column schema.
+- Pipeline Execution Digest: Ordered list of all applied transformations with learned parameters.
+- Download Cards:
+  - `reproduce.py`: Standalone script reproducing data cleaning, model training, and evaluation.
+  - `clean_dataset.csv`: Cleaned dataset with audit comments.
+  - `manifest.json`: Machine-readable reproducibility manifest conforming to open standards.
+  - `report.md`: Markdown executive summary.
+
 ## 8. Components list
 - Button (primary yellow, secondary white, danger pink)
 - Card
@@ -248,6 +295,10 @@ Built in Phase 1, grows with every phase.
 - Decision card
 - Sidebar module card
 - Dropdown
+- Confusion Matrix Grid (3px solid borders, square cells)
+- Bar Chart Component (flat solid fills, zero blur)
+- Manifest JSON Code Viewer (JetBrains Mono, dark paper background)
+
 - Progress bar: thick border, flat fill, step change only
 
 ## 9. Interaction details
