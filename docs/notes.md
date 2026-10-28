@@ -13,3 +13,9 @@
 - **Neo-brutalist shell**: The bold high-contrast UI with 3px black borders, hard offset shadows, and explicit status chips provides an intuitive workbench where all 6 diagnostic modules are discoverable from day one.
 - **Zero-loss profiling**: Profile calculations compute memory footprint, semantic type inferences, and missingness counts without altering underlying dataframe arrays or dropping rows.
 
+## Phase 5: Duplicates Detection, Advice, and Fixer Notes
+- **Pre-split deduplication rule**: Exact duplicate rows are dropped before dataset partitioning so identical records cannot span train and test sets and cause synthetic test leakage.
+- **Conflicting label guard**: Rows that possess identical features but contradictory targets introduce conflicting loss gradients. The advisor recommends dropping these ambiguous instances to ensure consistent learning signals.
+- **Pre-balanced file detection**: Files with a 50/50 target ratio containing high minority duplicate counts signal pre-split oversampling. The detector flags this as possible test leakage and instructs splitting the raw data first.
+
+
