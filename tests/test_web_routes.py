@@ -134,6 +134,33 @@ def test_individual_module_page(auth_client):
     assert "Phase 2" in response.text
 
 
+def test_duplicates_module_page(auth_client):
+    response = auth_client.get("/module/duplicates")
+    assert response.status_code == 200
+    assert "Duplicates" in response.text
+    assert "Phase 5" in response.text
+    assert "HYGIENE STATUS" in response.text
+
+
+def test_duplicates_apply_route(auth_client):
+    # Upload accident dataset
+    with open(SAMPLE_ACCIDENT, "rb") as f:
+        auth_client.post(
+            "/upload",
+            files={"file": ("accident.csv", f, "text/csv")},
+            follow_redirects=False,
+        )
+    resp = auth_client.post(
+        "/decide/duplicates/apply",
+        json={"option_id": "keep_first", "params": {}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert data["applied_option"] == "keep_first"
+    assert "final_rows" in data
+
+
 def test_upload_empty_file_returns_friendly_error(auth_client):
     response = auth_client.post(
         "/upload",
@@ -156,3 +183,23 @@ def test_logout_clears_cookie(auth_client):
     response = auth_client.get("/logout", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
+
+
+def test_lock_target_unsupervised_mode(auth_client):
+    """Verifies that selecting None / Unsupervised clears the target column and updates profile."""
+    with open(SAMPLE_ACCIDENT, "rb") as f:
+        auth_client.post(
+            "/upload",
+            files={"file": ("accident.csv", f, "text/csv")},
+            follow_redirects=False,
+        )
+    # Lock target as __none__ (Unsupervised / Cleaning only)
+    resp = auth_client.post(
+        "/target",
+        data={"target_column": "__none__", "task_type": "unsupervised"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert "TASK CONFIGURED: <strong>UNSUPERVISED / PURE DATA CLEANING</strong>" in resp.text
+
+
