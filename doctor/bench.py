@@ -526,6 +526,155 @@ def run_nulls_advisor_gate() -> tuple[bool, dict]:
     return gate_passed, details
 
 
+def run_duplicates_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 5 evaluation for Duplicates (detect + advise + fix).
+    Verifies:
+    1. Planted: 50 exact, 20 near, 10 conflicting pairs. All exact and conflicting found; near ones flagged as possible.
+    2. 0 false alarms on control (rows that look similar but differ in real values).
+    3. After the fix, no duplicates remain and row count equals original minus planted exact duplicates.
+    4. The pre-balanced warning fires on a file built by oversampling to 50/50, and does not fire on the control.
+    """
+    import numpy as np
+    import pandas as pd
+    from doctor.loader import load_csv
+    from doctor.base import Decision, DetectionContext
+    from doctor.issues.duplicates.detect import DuplicateDetector
+    from doctor.issues.duplicates.advise import DuplicateAdvisor
+    from doctor.issues.duplicates.fix import DuplicateFixer
+
+    details = {"checks": [], "planted": 80, "found": 0, "missed": 0, "false_alarms": 0}
+    detector = DuplicateDetector()
+    advisor = DuplicateAdvisor()
+    fixer = DuplicateFixer()
+
+    dup_csv = ROOT_DIR / "data" / "planted" / "duplicates.csv"
+    truth_json = ROOT_DIR / "data" / "planted" / "duplicates_truth.json"
+    clean_csv = ROOT_DIR / "data" / "planted" / "clean_control.csv"
+    pb_csv = ROOT_DIR / "data" / "planted" / "prebalanced_planted.csv"
+
+    if not dup_csv.exists() or not truth_json.exists() or not clean_csv.exists() or not pb_csv.exists():
+        from tools.make_planted import make_clean_control, make_duplicates_planted, make_prebalanced_planted
+        if not clean_csv.exists():
+            make_clean_control()
+        make_duplicates_planted()
+        make_prebalanced_planted()
+
+    with open(truth_json, "r", encoding="utf-8") as f:
+        truth = json.load(f)
+
+    df_planted, _ = load_csv(str(dup_csv), filename="duplicates.csv")
+    ctx = DetectionContext(target_column="target", task_type="classification")
+    issues = detector.detect(df_planted, ctx=ctx)
+    issues_by_kind = {i.evidence.get("kind"): i for i in issues if "kind" in i.evidence}
+
+    # 1. 50 exact duplicates found
+    exact_issue = issues_by_kind.get("exact")
+    exact_found = exact_issue.evidence.get("surplus_copies", 0) if exact_issue else 0
+    chk_exact = (exact_found == 50) and (exact_issue.certainty == "certain")
+    details["checks"].append({
+        "name": f"50 planted exact duplicates found as certain (found {exact_found})",
+        "passed": chk_exact,
+        "found": exact_found,
+        "expected": 50,
+    })
+
+    # 2. 10 conflicting pairs found with high severity
+    conf_issue = issues_by_kind.get("conflicting")
+    conf_found = conf_issue.evidence.get("conflicting_pairs_count", 0) if conf_issue else 0
+    chk_conf = (conf_found == 10) and (conf_issue.severity == "high") and (conf_issue.certainty == "certain")
+    details["checks"].append({
+        "name": f"10 planted conflicting pairs found with high severity (found {conf_found})",
+        "passed": chk_conf,
+        "found": conf_found,
+        "expected": 10,
+    })
+
+    # 3. 20 near duplicates found and flagged strictly as 'possible'
+    near_issue = issues_by_kind.get("near")
+    near_found = near_issue.evidence.get("near_duplicate_count", 0) if near_issue else 0
+    chk_near = (near_found == 20) and (near_issue.certainty == "possible")
+    details["checks"].append({
+        "name": f"20 planted near duplicates found and flagged as 'possible' (found {near_found})",
+        "passed": chk_near,
+        "found": near_found,
+        "expected": 20,
+    })
+
+    # 4. 0 false alarms on clean_control.csv
+    df_clean, _ = load_csv(str(clean_csv), filename="clean_control.csv")
+    clean_issues = detector.detect(df_clean, ctx=DetectionContext(target_column="target", task_type="classification"))
+    clean_duplicate_issues = [i for i in clean_issues if i.evidence.get("kind") in ("exact", "conflicting", "pre_balanced")]
+    false_alarms = len(clean_duplicate_issues)
+    chk_clean = false_alarms == 0
+    details["checks"].append({
+        "name": "0 false alarms on clean_control.csv (0 exact or conflicting duplicates)",
+        "passed": chk_clean,
+        "false_alarms": false_alarms,
+    })
+
+    # 5. Fixer test: After fix, no duplicate rows remain and row count equals original minus planted exact duplicates
+    orig_len = len(df_planted)
+    dec_first = Decision(issue_id="duplicates", column=None, option_id="keep_first", params={}, decided_by="recommended_accepted")
+    fitted_first = fixer.fit(df_planted, dec_first)
+    df_fixed = fixer.transform(df_planted, fitted_first, is_test=False)
+    no_dups_remain = int(df_fixed.duplicated().sum()) == 0
+    expected_fixed_len = orig_len - 50
+    chk_fixer_exact = no_dups_remain and (len(df_fixed) == expected_fixed_len)
+    details["checks"].append({
+        "name": f"After keep_first fix, 0 duplicates remain and row count equals original minus 50 ({len(df_fixed)} == {expected_fixed_len})",
+        "passed": chk_fixer_exact,
+        "rows_after_fix": len(df_fixed),
+        "expected_rows": expected_fixed_len,
+    })
+
+    # 6. Test set integrity: is_test=True never loses rows
+    test_result = fixer.transform(df_planted, fitted_first, is_test=True)
+    chk_test_safety = len(test_result) == orig_len
+    details["checks"].append({
+        "name": "Test set integrity: test rows are never dropped during deduplication",
+        "passed": chk_test_safety,
+    })
+
+    # 7. Conflicting duplicates fixer: drop_all_conflicting removes ambiguous rows
+    dec_conf = Decision(issue_id="duplicates", column="target", option_id="drop_all_conflicting", params={"target_column": "target"}, decided_by="user")
+    fitted_conf = fixer.fit(df_planted, dec_conf)
+    df_no_conf = fixer.transform(df_planted, fitted_conf, is_test=False)
+    conf_check_after = detector.detect(df_no_conf, ctx=ctx)
+    has_conf_after = any(i.evidence.get("kind") == "conflicting" for i in conf_check_after)
+    chk_fixer_conf = not has_conf_after
+    details["checks"].append({
+        "name": "Conflicting rows fixer eliminates all conflicting label pairs",
+        "passed": chk_fixer_conf,
+    })
+
+    # 8. Pre-balanced warning fires on 50/50 oversampled file
+    df_pb = pd.read_csv(pb_csv)
+    pb_issues = detector.detect(df_pb, ctx=DetectionContext(target_column="severe_accident", task_type="classification"))
+    pb_warning_fired = any(i.evidence.get("kind") == "pre_balanced" for i in pb_issues)
+    chk_pb_fire = pb_warning_fired is True
+    details["checks"].append({
+        "name": "Pre-balanced warning fires on 50/50 oversampled dataset",
+        "passed": chk_pb_fire,
+    })
+
+    # 9. Pre-balanced warning does NOT fire on clean_control.csv
+    pb_control_fired = any(i.evidence.get("kind") == "pre_balanced" for i in clean_issues)
+    chk_pb_quiet = pb_control_fired is False
+    details["checks"].append({
+        "name": "Pre-balanced warning stays quiet on clean control",
+        "passed": chk_pb_quiet,
+    })
+
+    details["planted"] = 80
+    passed_count = sum(1 for c in details["checks"] if c["passed"])
+    details["found"] = passed_count
+    details["missed"] = len(details["checks"]) - passed_count
+    details["false_alarms"] = false_alarms
+    gate_passed = all(c["passed"] for c in details["checks"])
+    return gate_passed, details
+
+
 def run_benchmark(target: str = "--all"):
     print("=" * 65)
     print("DATASET DOCTOR: AUTOMATED TEST BENCH")
@@ -612,6 +761,28 @@ def run_benchmark(target: str = "--all"):
                 "result": "PASS" if passed else "FAIL",
                 "gate_details": gate_details,
             }
+        elif mod.id == "duplicates":
+            passed, gate_details = run_duplicates_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("duplicates", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+
         else:
             if mod.status == "not_built":
                 print(f"  Status: NOT BUILT (Scheduled for Phase {mod.phase})")
