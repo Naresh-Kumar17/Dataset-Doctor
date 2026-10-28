@@ -1,0 +1,17 @@
+# Dataset Doctor — Project Progress Log
+
+## Phase 5: Duplicates Detection, Advice & Fixer (Gate PASS)
+- [x] Phase 4 wrap-up: Null advisor measurement switch & sentinel token normalization.
+- [x] Unsupervised profile mode: Support datasets without target column.
+- [x] Synthetic planted dataset generation: 50 exact duplicates, 20 near duplicates, 10 conflicting pairs.
+- [x] Core duplicates issue package and public exports.
+- [x] DuplicateFixer implementation: keep_first, keep_last, drop_all_conflicting, normalize_and_drop.
+- [x] DuplicateAdvisor implementation: transparent recommendations and reason explanations.
+- [x] DuplicateDetector implementation: exact duplicates, identifier collisions, near duplicates, conflicting pairs, and pre-balancing leakage guard.
+- [x] RemediationPipeline integration: fit/transform and standalone reproduce.py code generation.
+- [x] Web API endpoints: POST /decide/duplicates/apply and batch remediation optimizations.
+- [x] UI Module View: Neo-brutalist duplicate hygiene cards, critical warning banners, and interactive table.
+- [x] Unit test suite: 11 tests covering all duplicate detection, advice, fixing, and pipeline export.
+- [x] Integration test suite: Web routes and unsupervised mode verification.
+- [x] Automated benchmark: Gate 5 suite passing 9 of 9 checks with 0 false alarms on clean control.
+- [x] Architecture documentation & gate audit logging.
