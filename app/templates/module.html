@@ -19,13 +19,15 @@
         <span class="chip notbuilt" style="font-size: 13px; padding: 6px 12px;">PHASE {{ module.phase }}: NOT BUILT</span>
       {% endif %}
 
-      {% if module.id == 'nulls' %}
-        <a href="/module/nulls" class="btn primary" style="min-height: 40px; padding: 8px 18px; font-size: 13px;">RUN DETECT</a>
+      {% if module.id == 'nulls' or module.id == 'nulls_advisor' %}
+        <a href="/module/{{ module.id }}" class="btn primary" style="min-height: 40px; padding: 8px 18px; font-size: 13px;">RUN ADVISE & DETECT</a>
+      {% elif module.id == 'duplicates' %}
+        <a href="/module/duplicates" class="btn primary" style="min-height: 40px; padding: 8px 18px; font-size: 13px;">RUN DETECT</a>
       {% endif %}
     </div>
   </div>
 
-  {% if module.id == 'nulls' %}
+  {% if module.id == 'nulls' or module.id == 'nulls_advisor' %}
     <!-- Summary Strip -->
     <div class="stat-grid" style="margin-bottom: 24px;">
       <div class="stat-card" style="border-left: 6px solid var(--pink);">
@@ -78,10 +80,13 @@
       </div>
     {% endif %}
 
-    <!-- Issues Table -->
+    <!-- Issues Table with Advisor Recommendations -->
     <div class="card" style="margin-bottom: 24px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h3 class="card-title" style="margin: 0;">DETECTED ISSUES ({{ issues|length }})</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <h3 class="card-title" style="margin: 0;">MISSING VALUES & REMEDIATION ADVICE ({{ issues|length }})</h3>
+          <p style="margin: 4px 0 0; font-size: 13px; color: #555;">Evaluated using statistical distributions and 5-fold cross-validation on train data only.</p>
+        </div>
         {% if active_filename %}
           <span style="font-size: 13px; color: #555;">Active Source: <strong>{{ active_filename }}</strong></span>
         {% endif %}
@@ -90,7 +95,7 @@
       {% if issues %}
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;">
           <button class="btn" onclick="batchApplyAllRecommended()" style="background: var(--green); color: #000; font-weight: 800; padding: 6px 14px; font-size: 13px; box-shadow: 3px 3px 0px #000;">
-            ⚡ APPLY RECOMMENDED TO ALL
+            ⚡ APPLY RECOMMENDED TO ALL COLUMNS
           </button>
           <a href="/decide/export_csv" class="btn secondary" style="padding: 6px 14px; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; border: 2px solid #000; box-shadow: 2px 2px 0px #000;" download="cleaned_dataset.csv">
             📥 DOWNLOAD CLEANED CSV
@@ -103,12 +108,12 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th style="min-width: 140px;">COLUMN</th>
-                <th style="min-width: 260px;">WHAT WE FOUND</th>
-                <th style="min-width: 180px;">EVIDENCE BREAKDOWN</th>
-                <th style="min-width: 100px;">SEVERITY</th>
-                <th style="min-width: 110px;">CERTAINTY</th>
-                <th style="min-width: 130px;">INTERACTIVE ACTION</th>
+                <th style="min-width: 120px;">COLUMN</th>
+                <th style="min-width: 180px;">WHAT WE FOUND</th>
+                <th style="min-width: 140px;">EVIDENCE</th>
+                <th style="min-width: 90px;">SEVERITY</th>
+                <th style="min-width: 280px;">RECOMMENDED ADVICE & HOW TO FILL</th>
+                <th style="min-width: 160px;">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -122,11 +127,11 @@
                       <span class="chip high" style="font-size: 10px; margin-left: 6px;">TARGET</span>
                     {% endif %}
                   </td>
-                  <td style="font-size: 14px; line-height: 1.4;">
+                  <td style="font-size: 13px; line-height: 1.4;">
                     {{ iss.description }}
                   </td>
                   <td>
-                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; background: #eee; padding: 4px 8px; border: 1px solid #ccc; display: inline-block;">
+                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #eee; padding: 3px 6px; border: 1px solid #ccc; display: inline-block;">
                       {{ format_badge(iss.evidence) }}
                     </span>
                   </td>
@@ -140,16 +145,33 @@
                     {% endif %}
                   </td>
                   <td>
-                    {% if iss.certainty == 'certain' %}
-                      <span class="chip" style="background: #ffffff; border: 2px solid #000;">CERTAIN</span>
+                    {% if iss.recommendation %}
+                      <div style="margin-bottom: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                        <span class="chip pass" style="font-size: 11px; font-weight: 800; background: var(--green); color: #000; box-shadow: 2px 2px 0px #000;">
+                          {{ iss.recommendation.fill_preview }}
+                        </span>
+                        {% if iss.recommendation.confidence == 'close call' %}
+                          <span class="chip" style="font-size: 10px; background: var(--yellow);">CLOSE CALL</span>
+                        {% endif %}
+                      </div>
+                      <div style="font-size: 12px; color: #333; line-height: 1.35; margin-top: 4px;">
+                        {{ iss.recommendation.reason }}
+                      </div>
                     {% else %}
-                      <span class="chip" style="background: var(--yellow); border: 2px solid #000;">POSSIBLE</span>
+                      <span style="color: #888; font-size: 12px;">Manual review required</span>
                     {% endif %}
                   </td>
                   <td>
-                    <button class="btn secondary" onclick="openDecisionCard('{{ iss.column }}')" style="padding: 4px 10px; font-size: 12px; cursor: pointer; border-color: #000; font-weight: 800;">
-                      DECIDE & FIX →
-                    </button>
+                    <div style="display: flex; gap: 6px; flex-direction: column;">
+                      {% if iss.recommendation and iss.recommendation.option %}
+                        <button class="btn" onclick="applyQuickRecommended('{{ iss.column }}', '{{ iss.recommendation.option }}')" style="background: var(--green); color: #000; padding: 4px 8px; font-size: 11px; font-weight: 800; box-shadow: 2px 2px 0px #000;">
+                          ✓ APPLY RECOMMENDED
+                        </button>
+                      {% endif %}
+                      <button class="btn secondary" onclick="openDecisionCard('{{ iss.column }}')" style="padding: 4px 8px; font-size: 11px; cursor: pointer; border-color: #000; font-weight: 700;">
+                        CUSTOMIZE & PREVIEW →
+                      </button>
+                    </div>
                   </td>
                 </tr>
               {% endfor %}
@@ -163,6 +185,28 @@
         </div>
       {% endif %}
     </div>
+
+    <script>
+      async function applyQuickRecommended(column, optionId) {
+        if (!confirm("Apply recommended fill strategy '" + optionId + "' to column '" + column + "'?")) return;
+        try {
+          const res = await fetch("/decide/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ column: column, option_id: optionId, decided_by: "recommended_accepted" })
+          });
+          const data = await res.json();
+          if (data.status === "success") {
+            alert(data.message);
+            window.location.reload();
+          } else {
+            alert("Error: " + (data.detail || "Failed to apply remediation"));
+          }
+        } catch (err) {
+          alert("Network error: " + err.message);
+        }
+      }
+    </script>
 
   {% elif module.id == 'split_eval' %}
     {% if split_info and eval_result %}
@@ -344,6 +388,177 @@
         <strong>NO DATA LOADED:</strong> Please upload a dataset or set a target column on the <a href="/target" style="text-decoration: underline;">Target Selection Page</a> to run the evaluation engine.
       </div>
     {% endif %}
+
+  {% elif module.id == 'duplicates' %}
+    <!-- Duplicates Summary Strip -->
+    <div class="stat-grid" style="margin-bottom: 24px;">
+      <div class="stat-card" style="border-left: 6px solid var(--pink);">
+        <div class="stat-label">HIGH SEVERITY</div>
+        <div class="stat-val" style="color: #b00020;">{{ summary_counts.high }}</div>
+        <div style="font-size: 12px; color: #555; margin-top: 4px;">Conflicting / Pre-balanced / IDs</div>
+      </div>
+
+      <div class="stat-card" style="border-left: 6px solid var(--orange);">
+        <div class="stat-label">MEDIUM SEVERITY</div>
+        <div class="stat-val" style="color: #c46800;">{{ summary_counts.medium }}</div>
+        <div style="font-size: 12px; color: #555; margin-top: 4px;">Exact / Near duplicate rows</div>
+      </div>
+
+      <div class="stat-card" style="border-left: 6px solid var(--blue);">
+        <div class="stat-label">TOTAL ISSUES</div>
+        <div class="stat-val" style="color: #0056b3;">{{ summary_counts.total }}</div>
+        <div style="font-size: 12px; color: #555; margin-top: 4px;">Diagnostic flags</div>
+      </div>
+
+      <div class="stat-card" style="border-left: 6px solid var(--ink);">
+        <div class="stat-label">HYGIENE STATUS</div>
+        <div class="stat-val" style="font-size: 20px;">
+          {% if summary_counts.total == 0 %}CLEAN{% else %}ACTION REQ{% endif %}
+        </div>
+        <div style="font-size: 12px; color: #555; margin-top: 4px;">
+          {% if summary_counts.total == 0 %}0 duplicate issues{% else %}Deduplication available{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Warnings for Conflicting or Pre-balanced if present -->
+    {% for iss in issues %}
+      {% if iss.evidence.kind == 'conflicting' %}
+        <div class="banner warning" style="margin-bottom: 20px; border-left: 8px solid #b00020; background: #fff5f5;">
+          <strong>CRITICAL CONFLICTING TARGET LABELS:</strong>
+          Identical feature vectors have contradictory target values. A model cannot learn two conflicting outputs from identical inputs. Dropping conflicting rows is recommended.
+        </div>
+      {% elif iss.evidence.kind == 'pre_balanced' %}
+        <div class="banner warning" style="margin-bottom: 20px; border-left: 8px solid var(--yellow); background: #fffbe6;">
+          <strong>SYNTHETIC PRE-BALANCING LEAKAGE DETECTED:</strong>
+          Target class ratio is {{ iss.evidence.target_ratio_str }} with {{ iss.evidence.repeated_minority_rows }} repeated minority feature vectors.
+          The file appears to have been oversampled before split. Split your raw data first to ensure honest test evaluation!
+        </div>
+      {% endif %}
+    {% endfor %}
+
+    <!-- Issues Card & Table -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+        <h3 class="card-title" style="margin: 0;">DETECTED DUPLICATE ISSUES ({{ issues|length }})</h3>
+        {% if active_filename %}
+          <span style="font-size: 13px; color: #555;">Active Source: <strong>{{ active_filename }}</strong></span>
+        {% endif %}
+      </div>
+
+      {% if issues %}
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;">
+          <button class="btn" onclick="applyDuplicateFix('keep_first')" style="background: var(--green); color: #000; font-weight: 800; padding: 6px 14px; font-size: 13px; box-shadow: 3px 3px 0px #000;">
+            ⚡ DROP EXACT DUPLICATES (KEEP FIRST)
+          </button>
+          {% set has_conflicting = issues|selectattr('evidence.kind', 'equalto', 'conflicting')|list %}
+          {% if has_conflicting %}
+            <button class="btn" onclick="applyDuplicateFix('drop_all_conflicting')" style="background: var(--pink); color: #fff; font-weight: 800; padding: 6px 14px; font-size: 13px; box-shadow: 3px 3px 0px #000;">
+              ⚠️ DROP CONFLICTING ROWS
+            </button>
+          {% endif %}
+          <a href="/decide/export_csv" class="btn secondary" style="padding: 6px 14px; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; border: 2px solid #000; box-shadow: 2px 2px 0px #000;" download="cleaned_dataset.csv">
+            📥 DOWNLOAD CLEANED CSV
+          </a>
+          <a href="/decide/export" class="btn secondary" style="padding: 6px 14px; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; border: 2px solid #000; box-shadow: 2px 2px 0px #000;" download="reproduce.py">
+            💾 EXPORT REPRODUCE.PY
+          </a>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="min-width: 160px;">ISSUE TYPE</th>
+                <th style="min-width: 280px;">WHAT WE FOUND</th>
+                <th style="min-width: 180px;">EVIDENCE</th>
+                <th style="min-width: 100px;">SEVERITY</th>
+                <th style="min-width: 110px;">CERTAINTY</th>
+                <th style="min-width: 140px;">ACTION</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for iss in issues %}
+                <tr>
+                  <td>
+                    <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 14px;">
+                      {{ iss.title }}
+                    </span>
+                  </td>
+                  <td style="font-size: 14px; line-height: 1.4;">
+                    {{ iss.description }}
+                  </td>
+                  <td>
+                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; background: #eee; padding: 4px 8px; border: 1px solid #ccc; display: inline-block;">
+                      {{ format_badge(iss.evidence) }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if iss.severity == 'high' %}
+                      <span class="chip high">HIGH</span>
+                    {% elif iss.severity == 'medium' %}
+                      <span class="chip medium">MEDIUM</span>
+                    {% else %}
+                      <span class="chip low">LOW</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if iss.certainty == 'certain' %}
+                      <span class="chip" style="background: #ffffff; border: 2px solid #000;">CERTAIN</span>
+                    {% else %}
+                      <span class="chip" style="background: var(--yellow); border: 2px solid #000;">POSSIBLE</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if iss.evidence.kind == 'exact' %}
+                      <button class="btn secondary" onclick="applyDuplicateFix('keep_first')" style="padding: 4px 10px; font-size: 12px; font-weight: 800;">
+                        KEEP FIRST →
+                      </button>
+                    {% elif iss.evidence.kind == 'conflicting' %}
+                      <button class="btn secondary" onclick="applyDuplicateFix('drop_all_conflicting')" style="padding: 4px 10px; font-size: 12px; font-weight: 800; color: #b00020;">
+                        DROP ALL →
+                      </button>
+                    {% elif iss.evidence.kind == 'near' %}
+                      <button class="btn secondary" onclick="applyDuplicateFix('normalize_and_drop')" style="padding: 4px 10px; font-size: 12px; font-weight: 800;">
+                        NORMALIZE →
+                      </button>
+                    {% else %}
+                      <span style="font-size: 12px; color: #666;">INFO ONLY</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="banner success" style="margin: 0;">
+          <strong>ZERO DUPLICATES FOUND</strong> — Dataset is completely clean of exact duplicates, near duplicates, and conflicting rows.
+        </div>
+      {% endif %}
+    </div>
+
+    <script>
+      async function applyDuplicateFix(optionId) {
+        if (!confirm("Are you sure you want to apply '" + optionId + "' deduplication?")) return;
+        try {
+          const res = await fetch("/decide/duplicates/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ option_id: optionId })
+          });
+          const data = await res.json();
+          if (data.status === "success") {
+            alert(data.message);
+            window.location.reload();
+          } else {
+            alert("Error: " + (data.detail || "Failed to apply fix"));
+          }
+        } catch (err) {
+          alert("Network error: " + err.message);
+        }
+      }
+    </script>
 
   {% else %}
     <!-- Module Not Built Placeholder for future phases -->
