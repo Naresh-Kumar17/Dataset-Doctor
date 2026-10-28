@@ -84,3 +84,19 @@
 - Full Phase 4 test suite: 19 passed in `tests/issues/test_nulls_advise.py`, `tests/issues/test_nulls_fix.py`, and `tests/test_decide_routes.py`.
 - Regression check: all 65 tests passed across the entire project.
 - Neo-brutalist interactive decision cards integrated into `/module/nulls` with Before/After live preview, [APPLY RECOMMENDED], [CHOOSE ANOTHER], [SKIP], batch action [APPLY RECOMMENDED TO ALL], and standalone `reproduce.py` export endpoint.
+
+## 2026-10-26  Phase 5: Duplicates (Detect + Advise + Fix)   PASS
+- Automated benchmark runner verified via `python -m doctor.bench duplicates` and `python -m doctor.bench --all`:
+  - 9 of 9 Gate 5 checks PASSED:
+    - [PASS] 50 of 50 planted exact duplicate rows detected and flagged with certainty='certain'.
+    - [PASS] 10 of 10 planted conflicting duplicate pairs (identical features, differing target) detected with severity='high'.
+    - [PASS] 20 of 20 planted near-duplicate rows (casing, whitespace, precision fuzz) detected and flagged as certainty='possible'.
+    - [PASS] 0 false alarms on clean_control.csv (0 exact or conflicting duplicates flagged).
+    - [PASS] Fixer verification: After `keep_first` fix, exactly 0 duplicate rows remain and row count drops by exactly 50 (530 == 530).
+    - [PASS] Test set safety: test rows are never dropped during deduplication (`is_test=True` preserves row count).
+    - [PASS] Conflicting pairs fixer: `drop_all_conflicting` successfully removes ambiguous contradictory label pairs.
+    - [PASS] Pre-balanced warning fires on 50/50 oversampled file (synthetic pre-balancing leakage guard).
+    - [PASS] Pre-balanced warning stays quiet on clean control.
+- Full project test suite: all 80 tests passed across the entire project (`pytest -v`).
+- Neo-brutalist interactive duplicate management integrated into `/module/duplicates` with diagnostic summary cards, conflicting target alert banner, pre-balanced warning card, and quick remediation actions ([DROP EXACT DUPLICATES], [DROP CONFLICTING ROWS], [EXPORT REPRODUCE.PY]).
+
