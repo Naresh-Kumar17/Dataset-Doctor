@@ -249,15 +249,120 @@ def make_prebalanced_planted():
     return pb_csv
 
 
+def make_types_planted():
+    """
+    Creates data/planted/types.csv and truth JSON following IMPLEMENTATION.md Gate 6:
+    - Numbers stored as text: "$1,200.50", "15%", "12 kg"
+    - Ambiguous dates: "03/04/2021" (both day and month <= 12)
+    - Unambiguous dates: "2021-04-15" (ISO format)
+    - Yes/no booleans: "yes", "no"
+    - Constant column: "ACTIVE" across all rows
+    - Code categorical with leading zeros: "001", "007" (MUST NOT convert to number!)
+    - Mixed type: numbers plus words ("100", "cancelled", etc.)
+    """
+    rng = np.random.RandomState(42)
+    n_rows = 500
+
+    # 1. Base ID and target
+    ids = np.arange(1, n_rows + 1)
+    target = rng.choice([0, 1], p=[0.75, 0.25], size=n_rows)
+
+    # 2. Text numbers: Currency ($ and comma)
+    base_prices = np.round(rng.uniform(10.0, 2500.0, size=n_rows), 2)
+    price_usd = [f"${p:,.2f}" for p in base_prices]
+
+    # 3. Text numbers: Percentages (%)
+    base_discounts = rng.choice([5.0, 10.0, 15.0, 20.0, 25.0, 50.0], size=n_rows)
+    discount_pct = [f"{int(d)}%" for d in base_discounts]
+
+    # 4. Text numbers: Units (kg)
+    base_weights = np.round(rng.uniform(1.0, 50.0, size=n_rows), 1)
+    weight_kg = [f"{w} kg" for w in base_weights]
+
+    # 5. Ambiguous dates: e.g. "03/04/2021" (day <= 12 and month <= 12)
+    ambig_months = rng.choice(np.arange(1, 13), size=n_rows)
+    ambig_days = rng.choice(np.arange(1, 13), size=n_rows)
+    ambig_years = rng.choice([2020, 2021, 2022, 2023], size=n_rows)
+    ambiguous_event_date = [f"{d:02d}/{m:02d}/{y}" for d, m, y in zip(ambig_days, ambig_months, ambig_years)]
+
+    # 6. Unambiguous dates: ISO format "YYYY-MM-DD"
+    iso_months = rng.choice(np.arange(1, 13), size=n_rows)
+    iso_days = rng.choice(np.arange(1, 29), size=n_rows)
+    iso_years = rng.choice([2021, 2022, 2023], size=n_rows)
+    iso_signup_date = [f"{y}-{m:02d}-{d:02d}" for y, m, d in zip(iso_years, iso_months, iso_days)]
+
+    # 7. Yes/No booleans
+    subscribed_flag = rng.choice(["yes", "no", "yes", "no", "yes"], size=n_rows)
+
+    # 8. Constant column (zero variance)
+    constant_status = ["ACTIVE"] * n_rows
+
+    # 9. Categorical codes with leading zeros (e.g. "001", "002", "007")
+    # Must NOT be converted to numeric!
+    code_numbers = rng.choice([1, 2, 7, 15, 23, 99], size=n_rows)
+    product_code = [f"{c:03d}" for c in code_numbers]
+
+    # 10. Mixed type column (numbers + text labels)
+    mixed_options = ["100", "250", "50", "cancelled", "unknown", "pending", "500"]
+    mixed_notes = rng.choice(mixed_options, size=n_rows)
+
+    df_types = pd.DataFrame({
+        "id": ids,
+        "price_usd": price_usd,
+        "discount_pct": discount_pct,
+        "weight_kg": weight_kg,
+        "ambiguous_event_date": ambiguous_event_date,
+        "iso_signup_date": iso_signup_date,
+        "subscribed_flag": subscribed_flag,
+        "constant_status": constant_status,
+        "product_code": product_code,
+        "mixed_notes": mixed_notes,
+        "target": target,
+    })
+
+    types_csv = PLANTED_DIR / "types.csv"
+    df_types.to_csv(types_csv, index=False)
+
+    truth = {
+        "module": "types",
+        "rows": n_rows,
+        "planted": {
+            "text_numbers": ["price_usd", "discount_pct", "weight_kg"],
+            "ambiguous_dates": ["ambiguous_event_date"],
+            "unambiguous_dates": ["iso_signup_date"],
+            "booleans": ["subscribed_flag"],
+            "constants": ["constant_status"],
+            "mixed_types": ["mixed_notes"],
+        },
+        "protected_categoricals": ["product_code"],
+        "must_not_flag_on_control": ["text_number", "ambiguous_date", "constant", "mixed_type"],
+        "expected_truth_values": {
+            "price_usd_first_5": base_prices[:5].tolist(),
+            "discount_pct_first_5": [float(d) for d in base_discounts[:5]],
+            "weight_kg_first_5": base_weights[:5].tolist(),
+            "subscribed_flag_first_5": [1 if v == "yes" else 0 for v in subscribed_flag[:5]],
+        },
+    }
+
+    truth_path = PLANTED_DIR / "types_truth.json"
+    with open(truth_path, "w", encoding="utf-8") as f:
+        json.dump(truth, f, indent=2)
+
+    print(f"Created {types_csv.name} ({n_rows} rows) and {truth_path.name}")
+    return types_csv, truth_path
+
+
 def main():
     print("Generating planted datasets...")
     make_clean_control()
     make_nulls_planted()
     make_duplicates_planted()
     make_prebalanced_planted()
+    make_types_planted()
     print("All planted datasets successfully generated.")
 
 
 if __name__ == "__main__":
     main()
+
 
