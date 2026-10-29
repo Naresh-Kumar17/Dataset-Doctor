@@ -1,0 +1,65 @@
+{
+  "module": "types",
+  "rows": 500,
+  "planted": {
+    "text_numbers": [
+      "price_usd",
+      "discount_pct",
+      "weight_kg"
+    ],
+    "ambiguous_dates": [
+      "ambiguous_event_date"
+    ],
+    "unambiguous_dates": [
+      "iso_signup_date"
+    ],
+    "booleans": [
+      "subscribed_flag"
+    ],
+    "constants": [
+      "constant_status"
+    ],
+    "mixed_types": [
+      "mixed_notes"
+    ]
+  },
+  "protected_categoricals": [
+    "product_code"
+  ],
+  "must_not_flag_on_control": [
+    "text_number",
+    "ambiguous_date",
+    "constant",
+    "mixed_type"
+  ],
+  "expected_truth_values": {
+    "price_usd_first_5": [
+      1748.42,
+      1344.88,
+      780.72,
+      2036.35,
+      1714.98
+    ],
+    "discount_pct_first_5": [
+      20.0,
+      50.0,
+      15.0,
+      25.0,
+      5.0
+    ],
+    "weight_kg_first_5": [
+      49.8,
+      48.8,
+      32.9,
+      10.8,
+      34.3
+    ],
+    "subscribed_flag_first_5": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ]
+  }
+}
