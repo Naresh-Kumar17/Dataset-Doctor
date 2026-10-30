@@ -401,6 +401,54 @@ def apply_duplicate_decision(req: ApplyDuplicateDecisionRequest, request: Reques
     }
 
 
+class ApplyTypeDecisionRequest(BaseModel):
+    column: str
+    option_id: str
+    params: Optional[Dict[str, Any]] = None
+    decided_by: Optional[str] = "user"
+
+
+@router.post("/types/apply")
+def apply_type_decision(req: ApplyTypeDecisionRequest, request: Request):
+    """
+    Applies data type remediation (convert_to_numeric, parse_date, encode_boolean, drop_column, etc.).
+    """
+    df, target_col, _, session = _get_active_df_and_target(request, column=req.column)
+    from doctor.issues.types.fix import TypeFixer
+    fixer = TypeFixer()
+    params = req.params or {}
+
+    clean_decided_by = sanitize_text_input(req.decided_by or "user", 50)
+    decision = Decision(
+        issue_id="types",
+        column=req.column,
+        option_id=req.option_id,
+        params=params,
+        decided_by=clean_decided_by,
+    )
+    fitted = fixer.fit(df, decision)
+    df_transformed = fixer.transform(df, fitted, is_test=False)
+
+    if session:
+        session.df = df_transformed
+        session.decisions.append({
+            "issue_id": "types",
+            "column": req.column,
+            "option_id": req.option_id,
+            "params": params,
+            "decided_by": req.decided_by or "user",
+            "fitted_params": fitted,
+        })
+
+    return {
+        "status": "success",
+        "column": req.column,
+        "applied_option": req.option_id,
+        "new_dtype": str(df_transformed[req.column].dtype) if req.column in df_transformed.columns else "dropped",
+        "message": f"Successfully applied '{req.option_id}' to column '{req.column}'.",
+    }
+
+
 @router.get("/export")
 def export_reproduce_pipeline(request: Request):
     """
