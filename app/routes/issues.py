@@ -19,6 +19,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent
 SAMPLE_ACCIDENT = Path(__file__).resolve().parent.parent.parent / "data" / "samples" / "accident.csv"
 SAMPLE_NULLS = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "nulls.csv"
 SAMPLE_DUPLICATES = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "duplicates.csv"
+SAMPLE_TYPES = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "types.csv"
 
 
 @router.get("/module/{module_id}", response_class=HTMLResponse)
@@ -65,6 +66,20 @@ def get_module_page(module_id: str, request: Request):
                 session.target_column = target_col
                 session.task_type = task_type
                 session.metadata = {"filename": "duplicates.csv (Sample Preview)"}
+        except Exception:
+            df = None
+    elif module_id == "types" and SAMPLE_TYPES.exists():
+        # Fallback to types planted dataset to show actual data types diagnostics
+        try:
+            df, _ = load_csv(str(SAMPLE_TYPES), filename="types.csv (Sample Preview)")
+            active_filename = active_filename or "types.csv (Sample Preview)"
+            target_col = "target"
+            task_type = "classification"
+            if session:
+                session.df = df
+                session.target_column = target_col
+                session.task_type = task_type
+                session.metadata = {"filename": "types.csv (Sample Preview)"}
         except Exception:
             df = None
     elif SAMPLE_ACCIDENT.exists():
@@ -151,6 +166,30 @@ def get_module_page(module_id: str, request: Request):
             summary_counts[iss.certainty] = summary_counts.get(iss.certainty, 0) + 1
             summary_counts["total"] += 1
 
+    elif module_id == "types" and df is not None:
+        from doctor.issues.types.detect import TypeDetector
+        from doctor.issues.types.advise import TypeAdvisor
+        detector = TypeDetector()
+        advisor = TypeAdvisor()
+        ctx = DetectionContext(target_column=target_col, task_type=task_type)
+        issues = detector.detect(df, ctx=ctx)
+
+        for iss in issues:
+            summary_counts[iss.severity] = summary_counts.get(iss.severity, 0) + 1
+            summary_counts[iss.certainty] = summary_counts.get(iss.certainty, 0) + 1
+            summary_counts["total"] += 1
+
+            try:
+                rec = advisor.advise(iss, df, target=target_col, ctx=ctx)
+                iss.recommendation = {
+                    "option": rec.recommended,
+                    "reason": rec.reason,
+                    "confidence": rec.confidence,
+                    "options": rec.options,
+                }
+            except Exception:
+                iss.recommendation = None
+
     elif module_id == "split_eval" and df is not None:
         target = target_col or (df.columns[-1] if not df.empty else None)
         if target and target in df.columns:
@@ -176,7 +215,11 @@ def get_module_page(module_id: str, request: Request):
                 split_demo = None
 
     def badge_formatter(evidence: dict) -> str:
-        if "kind" in evidence:
+        kind = evidence.get("kind", "")
+        if kind in ("text_number", "ambiguous_date", "date", "boolean", "constant", "id_like", "high_cardinality", "mixed_type"):
+            from doctor.issues.types.explain import format_types_badge
+            return format_types_badge(evidence)
+        elif "kind" in evidence:
             from doctor.issues.duplicates.explain import format_duplicates_badge
             return format_duplicates_badge(evidence)
         return format_evidence_badge(evidence)
