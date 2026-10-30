@@ -15,6 +15,7 @@ import re
 from doctor.base import Decision
 from doctor.issues.nulls.fix import NullFixer
 from doctor.issues.duplicates.fix import DuplicateFixer
+from doctor.issues.types.fix import TypeFixer
 
 
 @dataclass
@@ -38,6 +39,7 @@ class RemediationPipeline:
         self.steps: List[PipelineStep] = []
         self._null_fixer = NullFixer()
         self._duplicate_fixer = DuplicateFixer()
+        self._type_fixer = TypeFixer()
 
     def record_decision(self, decision: Decision, train_df: Optional[pd.DataFrame] = None) -> PipelineStep:
         """
@@ -50,6 +52,8 @@ class RemediationPipeline:
                 fitted = self._null_fixer.fit(train_df, decision)
             elif decision.issue_id == "duplicates" or decision.issue_id.startswith("dup"):
                 fitted = self._duplicate_fixer.fit(train_df, decision)
+            elif decision.issue_id == "types" or decision.issue_id.startswith("type"):
+                fitted = self._type_fixer.fit(train_df, decision)
 
         step = PipelineStep(
             step_id=f"step_{len(self.steps) + 1}",
@@ -74,6 +78,8 @@ class RemediationPipeline:
                     df_curr = self._null_fixer.transform(df_curr, step.fitted_params, is_test=is_test)
                 elif step.issue_id == "duplicates" or step.issue_id.startswith("dup"):
                     df_curr = self._duplicate_fixer.transform(df_curr, step.fitted_params, is_test=is_test)
+                elif step.issue_id == "types" or step.issue_id.startswith("type"):
+                    df_curr = self._type_fixer.transform(df_curr, step.fitted_params, is_test=is_test)
         return df_curr
 
     def get_decision_log(self) -> List[Dict[str, Any]]:
@@ -101,6 +107,7 @@ class RemediationPipeline:
             '"""',
             'import pandas as pd',
             'import numpy as np',
+            'import re',
             '',
             'def clean_dataset(df: pd.DataFrame, is_test: bool = False) -> pd.DataFrame:',
             '    """Applies the exact cleaning decisions learned during Dataset Doctor diagnosis."""',
@@ -178,6 +185,41 @@ class RemediationPipeline:
                 lines.append('            if data[c].dtype == object or pd.api.types.is_string_dtype(data[c].dtype):')
                 lines.append('                data[c] = data[c].astype(str).str.strip().str.lower()')
                 lines.append('        data = data.drop_duplicates(keep="first")')
+
+            elif opt == "convert_to_numeric":
+                lines.append(f'    if {repr(col)} in data.columns:')
+                lines.append('        def _strip_symbols_fn(val):')
+                lines.append('            if pd.isna(val): return np.nan')
+                lines.append('            s = str(val).strip()')
+                lines.append('            for sym in ["$", "€", "£", "¥", "₹", "%", ","]:')
+                lines.append('                s = s.replace(sym, "")')
+                lines.append('            for u in ["kg", "km", "cm", "mm", "lbs", "m", "g", "oz", "usd", "eur", "k"]:')
+                lines.append('                s = re.sub(rf"\\s*{u}\\b", "", s, flags=re.IGNORECASE)')
+                lines.append('            try: return float(s.strip())')
+                lines.append('            except: return np.nan')
+                lines.append(f'        data[{repr(col)}] = data[{repr(col)}].apply(_strip_symbols_fn).astype(float)')
+
+            elif opt == "parse_date_day_first":
+                lines.append(f'    if {repr(col)} in data.columns:')
+                lines.append(f'        data[{repr(col)}] = pd.to_datetime(data[{repr(col)}], dayfirst=True, errors="coerce")')
+
+            elif opt == "parse_date_month_first":
+                lines.append(f'    if {repr(col)} in data.columns:')
+                lines.append(f'        data[{repr(col)}] = pd.to_datetime(data[{repr(col)}], dayfirst=False, errors="coerce")')
+
+            elif opt == "parse_date":
+                dfirst = bool(params.get("dayfirst", False))
+                lines.append(f'    if {repr(col)} in data.columns:')
+                lines.append(f'        data[{repr(col)}] = pd.to_datetime(data[{repr(col)}], dayfirst={dfirst}, errors="coerce")')
+
+            elif opt == "encode_boolean":
+                lines.append(f'    if {repr(col)} in data.columns:')
+                lines.append('        _bmap = {"yes": 1, "no": 0, "y": 1, "n": 0, "true": 1, "false": 0, "t": 1, "f": 0, "1": 1, "0": 0}')
+                lines.append(f'        data[{repr(col)}] = data[{repr(col)}].astype(str).str.strip().str.lower().map(_bmap).fillna(0).astype(int)')
+
+            elif opt == "coerce_numeric":
+                lines.append(f'    if {repr(col)} in data.columns:')
+                lines.append(f'        data[{repr(col)}] = pd.to_numeric(data[{repr(col)}], errors="coerce")')
 
             lines.append('')
 
