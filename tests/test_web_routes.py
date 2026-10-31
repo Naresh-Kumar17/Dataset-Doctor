@@ -203,3 +203,34 @@ def test_lock_target_unsupervised_mode(auth_client):
     assert "TASK CONFIGURED: <strong>UNSUPERVISED / PURE DATA CLEANING</strong>" in resp.text
 
 
+def test_types_module_page(auth_client):
+    response = auth_client.get("/module/types")
+    assert response.status_code == 200
+    assert "Data Types" in response.text
+    assert "PHASE 6" in response.text.upper()
+    assert "DATA TYPE ANOMALIES & TYPE REMEDIATION" in response.text
+
+
+def test_types_apply_route(auth_client):
+    # Upload planted types dataset
+    from pathlib import Path
+    types_csv = Path(__file__).resolve().parent.parent / "data" / "planted" / "types.csv"
+    with open(types_csv, "rb") as f:
+        auth_client.post(
+            "/upload",
+            files={"file": ("types.csv", f, "text/csv")},
+            follow_redirects=False,
+        )
+    resp = auth_client.post(
+        "/decide/types/apply",
+        json={"column": "price_usd", "option_id": "convert_to_numeric", "params": {}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert data["column"] == "price_usd"
+    assert data["applied_option"] == "convert_to_numeric"
+    assert data["new_dtype"] == "float64"
+
+
+
