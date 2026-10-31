@@ -675,6 +675,191 @@ def run_duplicates_gate() -> tuple[bool, dict]:
     return gate_passed, details
 
 
+def run_types_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 6 evaluation for Data Types (detect + advise + fix).
+    Verifies:
+    1. All planted type problems found (text numbers, ambiguous dates, booleans, constants).
+    2. 0 false alarms on control (no text numbers, ambiguous dates, constants, or mixed types).
+    3. Ambiguous dates are flagged and user is asked, never guessed (certainty 'possible').
+    4. Categorical column with codes like '001' is NOT turned into a number by mistake.
+    5. After conversion, a numeric column has the same values as the planted truth.
+    6. Boolean flags correctly convert to 0/1.
+    7. Constant columns drop cleanly without changing test row counts.
+    8. Standalone reproduce.py reproduces the exact cleaned types.
+    """
+    import json
+    import re
+    import numpy as np
+    import pandas as pd
+    from doctor.loader import load_csv
+    from doctor.base import Decision, DetectionContext
+    from doctor.issues.types.detect import TypeDetector
+    from doctor.issues.types.advise import TypeAdvisor
+    from doctor.issues.types.fix import TypeFixer
+    from doctor.pipeline import RemediationPipeline
+
+    details = {"checks": [], "planted": 7, "found": 0, "missed": 0, "false_alarms": 0}
+    detector = TypeDetector()
+    advisor = TypeAdvisor()
+    fixer = TypeFixer()
+
+    types_csv = ROOT_DIR / "data" / "planted" / "types.csv"
+    truth_json = ROOT_DIR / "data" / "planted" / "types_truth.json"
+    clean_csv = ROOT_DIR / "data" / "planted" / "clean_control.csv"
+
+    if not types_csv.exists() or not truth_json.exists():
+        from tools.make_planted import make_types_planted
+        make_types_planted()
+    if not clean_csv.exists():
+        from tools.make_planted import make_clean_control
+        make_clean_control()
+
+    with open(truth_json, "r", encoding="utf-8") as f:
+        truth = json.load(f)
+
+    df_types, _ = load_csv(str(types_csv), filename="types.csv")
+    ctx = DetectionContext(target_column="target", task_type="classification")
+    issues = detector.detect(df_types, ctx=ctx)
+    issues_by_col = {i.column: i for i in issues if i.column}
+
+    # 1. Text numbers found (price_usd, discount_pct, weight_kg)
+    text_num_cols = [col for col, iss in issues_by_col.items() if iss.evidence.get("kind") == "text_number"]
+    chk_text_nums = all(c in text_num_cols for c in ["price_usd", "discount_pct", "weight_kg"])
+    details["checks"].append({
+        "name": f"All planted text numbers found ({', '.join(text_num_cols)})",
+        "passed": bool(chk_text_nums),
+        "found_columns": text_num_cols,
+    })
+
+    # 2. Ambiguous date flagged as possible (never guessed)
+    ambig_iss = issues_by_col.get("ambiguous_event_date")
+    chk_ambig = bool(ambig_iss and ambig_iss.evidence.get("kind") == "ambiguous_date" and ambig_iss.certainty == "possible")
+    details["checks"].append({
+        "name": "Ambiguous dates flagged and user is asked, never guessed (certainty=possible)",
+        "passed": chk_ambig,
+        "certainty": ambig_iss.certainty if ambig_iss else None,
+    })
+
+    # 3. Categorical code like '001' is NOT converted to number by mistake
+    code_iss = issues_by_col.get("product_code")
+    chk_code_safe = bool(code_iss is None or code_iss.evidence.get("kind") != "text_number")
+    details["checks"].append({
+        "name": "Categorical column with codes like '001' is NOT turned into a number by mistake",
+        "passed": chk_code_safe,
+    })
+
+    # 4. Unambiguous date found as certain
+    iso_iss = issues_by_col.get("iso_signup_date")
+    chk_iso = bool(iso_iss and iso_iss.evidence.get("kind") == "date" and iso_iss.certainty == "certain")
+    details["checks"].append({
+        "name": "Unambiguous ISO date timestamp found with certainty=certain",
+        "passed": chk_iso,
+    })
+
+    # 5. Boolean representation found as certain
+    bool_iss = issues_by_col.get("subscribed_flag")
+    chk_bool = bool(bool_iss and bool_iss.evidence.get("kind") == "boolean" and bool_iss.certainty == "certain")
+    details["checks"].append({
+        "name": "Yes/No boolean representation detected with certainty=certain",
+        "passed": chk_bool,
+    })
+
+    # 6. Constant column found as high severity certain
+    const_iss = issues_by_col.get("constant_status")
+    chk_const = bool(const_iss and const_iss.evidence.get("kind") == "constant" and const_iss.severity == "high")
+    details["checks"].append({
+        "name": "Constant zero-variance column detected with severity=high",
+        "passed": chk_const,
+    })
+
+    # 7. 0 false alarms on clean_control.csv for type defects
+    df_clean, _ = load_csv(str(clean_csv), filename="clean_control.csv")
+    clean_issues = detector.detect(df_clean, ctx=DetectionContext(target_column="target", task_type="classification"))
+    type_defects_on_control = [
+        iss for iss in clean_issues
+        if iss.evidence.get("kind") in ("text_number", "ambiguous_date", "constant", "mixed_type")
+    ]
+    false_alarms = len(type_defects_on_control)
+    chk_clean = (false_alarms == 0)
+    details["checks"].append({
+        "name": "0 false alarms on clean_control.csv (no false text numbers, ambiguous dates, or constants)",
+        "passed": chk_clean,
+        "false_alarms": false_alarms,
+    })
+
+    # 8. Advisor check on ambiguous date: requires user confirmation
+    if ambig_iss:
+        rec_ambig = advisor.advise(ambig_iss, df_types, target="target", ctx=ctx)
+        chk_advisor_ambig = bool(rec_ambig.confidence == "close call" and any(o.id == "parse_date_day_first" for o in rec_ambig.options) and any(o.id == "parse_date_month_first" for o in rec_ambig.options))
+    else:
+        chk_advisor_ambig = False
+    details["checks"].append({
+        "name": "Advisor presents explicit Day-First and Month-First options for ambiguous dates",
+        "passed": chk_advisor_ambig,
+    })
+
+    # 9. Fixer check: numeric column values match planted truth
+    dec_price = Decision(issue_id="types", column="price_usd", option_id="convert_to_numeric", params={}, decided_by="recommended_accepted")
+    fitted_price = fixer.fit(df_types, dec_price)
+    fixed_types = fixer.transform(df_types, fitted_price, is_test=False)
+    expected_price_5 = truth["expected_truth_values"]["price_usd_first_5"]
+    actual_price_5 = fixed_types["price_usd"].iloc[:5].tolist()
+    chk_numeric_match = bool(np.allclose(actual_price_5, expected_price_5))
+    details["checks"].append({
+        "name": "After convert_to_numeric, numeric column values match planted truth exactly",
+        "passed": chk_numeric_match,
+        "first_5_actual": actual_price_5,
+        "first_5_expected": expected_price_5,
+    })
+
+    # 10. Fixer check: boolean encoding produces 0 and 1
+    dec_bool = Decision(issue_id="types", column="subscribed_flag", option_id="encode_boolean", params={}, decided_by="recommended_accepted")
+    fitted_bool = fixer.fit(df_types, dec_bool)
+    fixed_bool = fixer.transform(df_types, fitted_bool, is_test=False)
+    chk_bool_vals = bool(set(fixed_bool["subscribed_flag"].unique()).issubset({0, 1}))
+    details["checks"].append({
+        "name": "After encode_boolean, values are standard binary 0 and 1",
+        "passed": chk_bool_vals,
+    })
+
+    # 11. Fixer check: constant column dropped cleanly
+    dec_const = Decision(issue_id="types", column="constant_status", option_id="drop_column", params={"column": "constant_status"}, decided_by="recommended_accepted")
+    fitted_const = fixer.fit(df_types, dec_const)
+    fixed_const = fixer.transform(df_types, fitted_const, is_test=False)
+    chk_const_dropped = bool("constant_status" not in fixed_const.columns and len(fixed_const) == len(df_types))
+    details["checks"].append({
+        "name": "After drop_column, constant column is removed without altering row count",
+        "passed": chk_const_dropped,
+    })
+
+    # 12. Pipeline export: standalone reproduce code executes and produces identical clean types
+    pipeline = RemediationPipeline()
+    pipeline.record_decision(dec_price, df_types)
+    pipeline.record_decision(dec_bool, df_types)
+    pipeline.record_decision(dec_const, df_types)
+    pipeline_clean_df = pipeline.transform(df_types, is_test=False)
+
+    reproduce_code = pipeline.export_reproduce_code()
+    exec_scope = {"pd": pd, "np": np, "re": re}
+    exec(reproduce_code, exec_scope)
+    clean_func = exec_scope.get("clean_dataset")
+    reproduced_df = clean_func(df_types, is_test=False)
+    chk_reproduce = bool(pipeline_clean_df.equals(reproduced_df))
+    details["checks"].append({
+        "name": "Decision log persists and exported reproduce.py code rebuilds identical clean dataset",
+        "passed": chk_reproduce,
+    })
+
+    details["planted"] = 7
+    passed_count = sum(1 for c in details["checks"] if c["passed"])
+    details["found"] = passed_count
+    details["missed"] = len(details["checks"]) - passed_count
+    details["false_alarms"] = false_alarms
+    gate_passed = all(c["passed"] for c in details["checks"])
+    return gate_passed, details
+
+
 def run_benchmark(target: str = "--all"):
     print("=" * 65)
     print("DATASET DOCTOR: AUTOMATED TEST BENCH")
@@ -766,6 +951,27 @@ def run_benchmark(target: str = "--all"):
             status = "gate_passed" if passed else "gate_failed"
             now_iso = datetime.now().isoformat()
             update_module_status("duplicates", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "types":
+            passed, gate_details = run_types_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("types", status, gate_details=gate_details, timestamp=now_iso)
 
             print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
             for chk in gate_details["checks"]:
