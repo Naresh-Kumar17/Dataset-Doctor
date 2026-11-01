@@ -18,4 +18,10 @@
 - **Conflicting label guard**: Rows that possess identical features but contradictory targets introduce conflicting loss gradients. The advisor recommends dropping these ambiguous instances to ensure consistent learning signals.
 - **Pre-balanced file detection**: Files with a 50/50 target ratio containing high minority duplicate counts signal pre-split oversampling. The detector flags this as possible test leakage and instructs splitting the raw data first.
 
+## Phase 6: Data Types Detection, Advice, and Fixer Notes
+- **Text number stripping & leading zero code protection**: Strips currencies, commas, percentages, and units while strictly guarding categorical codes with leading zeros (e.g. '001', '007') so codes are not corrupted into numbers.
+- **Ambiguous date format user disambiguation**: Dates where both day and month components are 12 or less (e.g. '03/04/2021') cannot be guessed reliably without domain knowledge. The advisor surfaces explicit Day-First (DD/MM) vs Month-First (MM/DD) choices and asks the user rather than guessing silently.
+- **Zero-variance and identifier pruning**: Constant columns (zero mutual information) and high-cardinality IDs (leakage and memorization vectors) are flagged for removal across both train and test partitions without altering test row counts.
+
+
 
