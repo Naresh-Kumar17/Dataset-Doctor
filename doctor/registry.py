@@ -56,7 +56,7 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
         name="Data Types",
         phase=6,
         description="Identify numbers stored as text, ambiguous date formats, booleans, and constant/ID columns.",
-        status="not_built",
+        status="gate_passed",
     ),
     "outliers": ModuleInfo(
         id="outliers",
