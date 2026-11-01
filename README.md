@@ -3,13 +3,13 @@
 [![Live Demo on Render](https://img.shields.io/badge/Render-Live%20Demo-brightgreen?style=for-the-badge&logo=render)](https://dataset-doctor-8c7b.onrender.com/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Status](https://img.shields.io/badge/Gate%205-PASS-success?style=for-the-badge)](docs/gate_log.md)
+[![Status](https://img.shields.io/badge/Gate%206-PASS-success?style=for-the-badge)](docs/gate_log.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 Upload a CSV. Find the data problems that quietly ruin ML models. Get a recommended fix with reasons and test results. You decide. See the real before/after result.
 
 > 🌐 **Live Application**: [https://dataset-doctor-8c7b.onrender.com/](https://dataset-doctor-8c7b.onrender.com/)  
-> 🚦 **Development Gate**: **Phase 5 PASS** (Duplicate Rows Detection, Conflicting Labels Guard, Pre-Balanced Warning, & Cleaned CSV Export).
+> 🚦 **Development Gate**: **Phase 6 PASS** (Data Types: Text Numbers, Ambiguous Dates, Booleans, & Constant Features).
 
 ---
 
@@ -114,7 +114,7 @@ Full details: [IMPLEMENTATION.md](IMPLEMENTATION.md)
 | 3 | Split + evaluation engine | [x] PASS | 2026-10-21 |
 | 4 | Null advisor + fixer (interactive) | [x] PASS | 2026-10-23 |
 | 5 | Duplicates | [x] PASS | 2026-10-26 |
-| 6 | Data types | [ ] | |
+| 6 | Data types | [x] PASS | 2026-11-02 |
 | 7 | Outlier detection | [ ] | |
 | 8 | Outlier advisor + fixer | [ ] | |
 | 9 | Imbalance | [ ] | |
