@@ -100,3 +100,22 @@
 - Full project test suite: all 80 tests passed across the entire project (`pytest -v`).
 - Neo-brutalist interactive duplicate management integrated into `/module/duplicates` with diagnostic summary cards, conflicting target alert banner, pre-balanced warning card, and quick remediation actions ([DROP EXACT DUPLICATES], [DROP CONFLICTING ROWS], [EXPORT REPRODUCE.PY]).
 
+## 2026-11-02  Phase 6: Data Types (Detect + Advise + Fix)   PASS
+- Automated benchmark runner verified via `python -m doctor.bench types` and `python -m doctor.bench --all`:
+  - 12 of 12 Gate 6 checks PASSED:
+    - [PASS] All planted text numbers found (`price_usd`, `discount_pct`, `weight_kg`).
+    - [PASS] Ambiguous dates flagged and user is asked, never guessed (certainty='possible').
+    - [PASS] Categorical column with codes like '001' is NOT turned into a number by mistake.
+    - [PASS] Unambiguous ISO date timestamp found with certainty='certain'.
+    - [PASS] Yes/No boolean representation detected with certainty='certain'.
+    - [PASS] Constant zero-variance column detected with severity='high'.
+    - [PASS] 0 false alarms on clean_control.csv (no false text numbers, ambiguous dates, or constants).
+    - [PASS] Advisor presents explicit Day-First and Month-First options for ambiguous dates.
+    - [PASS] After convert_to_numeric, numeric column values match planted truth exactly.
+    - [PASS] After encode_boolean, values are standard binary 0 and 1.
+    - [PASS] After drop_column, constant column is removed without altering row count.
+    - [PASS] Decision log persists and exported reproduce.py code rebuilds identical clean dataset.
+- Full project test suite: 15 unit tests in `tests/issues/test_types.py` and 2 integration tests in `tests/test_web_routes.py` passing cleanly.
+- Neo-brutalist interactive types workbench integrated into `/module/types` with status chips, ambiguous date alert banner with Day-First and Month-First buttons, type anomaly table, and quick action conversion buttons.
+
+
