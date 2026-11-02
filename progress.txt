@@ -15,3 +15,19 @@
 - [x] Integration test suite: Web routes and unsupervised mode verification.
 - [x] Automated benchmark: Gate 5 suite passing 9 of 9 checks with 0 false alarms on clean control.
 - [x] Architecture documentation & gate audit logging.
+
+## Phase 6: Data Types Detection, Advice & Fixer (Gate PASS)
+- [x] Synthetic planted dataset generation: text numbers ($1,200, 15%, 12 kg), ambiguous dates (03/04/2021), unambiguous ISO dates, booleans, constants, and leading-zero code categoricals (001, 007).
+- [x] Core types issue package and public exports (TypeDetector, TypeAdvisor, TypeFixer).
+- [x] TypeDetector implementation: symbol stripping, code protection guard, day/month ambiguity analysis, zero variance, and identifier detection.
+- [x] TypeAdvisor implementation: rule-based recommendations, reason explanations, and explicit user disambiguation prompt for ambiguous dates.
+- [x] TypeFixer implementation: convert_to_numeric, parse_date_day_first, parse_date_month_first, parse_date, encode_boolean, drop_column, and coerce_numeric.
+- [x] RemediationPipeline integration: fit/transform execution, decision logging, and standalone reproduce.py code export.
+- [x] Web API endpoints: POST /decide/types/apply with session decision tracking.
+- [x] UI Module View: Neo-brutalist data types workbench, ambiguous date alert banner with Day-First and Month-First buttons, type anomaly table, and conversion buttons.
+- [x] Unit test suite: 15 unit tests in tests/issues/test_types.py covering detection, advice, fixing, date ambiguity, code leading zero guard, and reproduce code execution.
+- [x] Integration test suite: Web routes and decision API verification in tests/test_web_routes.py.
+- [x] Automated benchmark: Gate 6 runner passing 12 of 12 checks with 0 false alarms on clean control.
+- [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 5 completed modules.
+- [x] Architecture documentation, gate log update, and commit scheduling.
+
