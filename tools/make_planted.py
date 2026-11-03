@@ -352,6 +352,128 @@ def make_types_planted():
     return types_csv, truth_path
 
 
+def make_outliers_planted():
+    """
+    Creates data/planted/outliers.csv and truth JSON following IMPLEMENTATION.md section 7 & 8.
+    Planted issues:
+    - age: 10 impossible values (-5, -12, 145, 210, 999, etc.) -> severity=high
+    - height_cm: 1 unit error (170,000 cm - 1000x median mix-up) -> severity=medium
+    - extreme_salary: 20 extreme-but-real values (high valid earners, 10 aligned with minority target)
+    - clean_skewed_income: heavily skewed clean log-normal column -> must not flag > 5% as outliers
+    - clean_gaussian: clean normal column N(100, 15) -> must stay under 1% flagged
+    - department: categorical column -> 0 flags
+    - is_active: binary column -> 0 flags
+    - target: imbalanced binary classification (10% minority)
+    """
+    rng = np.random.default_rng(42)
+    n_rows = 600
+
+    # 1. Target with 10% minority
+    target = np.zeros(n_rows, dtype=int)
+    minority_indices = rng.choice(n_rows, size=60, replace=False)
+    target[minority_indices] = 1
+
+    # 2. Age: 10 impossible values
+    age = rng.integers(21, 68, size=n_rows).astype(float)
+    impossible_age_indices = [10, 25, 40, 80, 120, 180, 240, 310, 420, 500]
+    impossible_age_values = [-5.0, -12.0, 145.0, 210.0, 999.0, -1.0, 150.0, 300.0, -99.0, 130.0]
+    for idx, val in zip(impossible_age_indices, impossible_age_values):
+        age[idx] = val
+
+    # 3. Height in cm: 1 unit mix-up (170,000 mm entered instead of 170 cm)
+    height_cm = np.round(rng.normal(170.0, 7.5, size=n_rows), 1)
+    unit_error_index = 35
+    height_cm[unit_error_index] = 170000.0  # 1000x median
+
+    # 4. Extreme salary: 20 extreme-but-real values
+    # Base salaries ~ 40,000 to 90,000
+    base_salary = np.round(rng.normal(55000.0, 12000.0, size=n_rows), 2)
+    base_salary = np.clip(base_salary, 28000.0, 98000.0)
+
+    # Pick 20 extreme rows, 10 of which are in minority class
+    avail_min = [i for i in minority_indices if i not in impossible_age_indices and i != unit_error_index]
+    avail_maj = [i for i in range(n_rows) if i not in minority_indices and i not in impossible_age_indices and i != unit_error_index]
+
+    extreme_indices = list(avail_min[:10]) + list(avail_maj[:10])
+    extreme_values = [
+        260000.0, 285000.0, 310000.0, 330000.0, 355000.0,
+        375000.0, 390000.0, 415000.0, 430000.0, 450000.0,
+        270000.0, 290000.0, 315000.0, 340000.0, 360000.0,
+        380000.0, 400000.0, 420000.0, 440000.0, 460000.0
+    ]
+    for idx, val in zip(extreme_indices, extreme_values):
+        base_salary[idx] = val
+
+    # 5. Heavily skewed but clean log-normal income
+    clean_skewed_income = np.round(rng.lognormal(mean=9.5, sigma=0.85, size=n_rows), 2)
+
+    # 6. Clean Gaussian column
+    clean_gaussian = np.round(rng.normal(loc=100.0, scale=15.0, size=n_rows), 2)
+
+    # 7. Categorical column (must never flag)
+    depts = ["Sales", "Engineering", "Marketing", "HR", "Support", "Finance"]
+    department = [depts[i % len(depts)] for i in range(n_rows)]
+
+    # 8. Binary column (must never flag)
+    is_active = (rng.uniform(size=n_rows) > 0.3).astype(int)
+
+    df_outliers = pd.DataFrame({
+        "id": np.arange(1, n_rows + 1),
+        "age": age,
+        "height_cm": height_cm,
+        "extreme_salary": base_salary,
+        "clean_skewed_income": clean_skewed_income,
+        "clean_gaussian": clean_gaussian,
+        "department": department,
+        "is_active": is_active,
+        "target": target,
+    })
+
+    outliers_csv = PLANTED_DIR / "outliers.csv"
+    df_outliers.to_csv(outliers_csv, index=False)
+
+    truth = {
+        "module": "outliers",
+        "rows": n_rows,
+        "planted": {
+            "impossible_age": {
+                "column": "age",
+                "count": 10,
+                "indices": [int(i) for i in impossible_age_indices],
+                "values": [float(v) for v in impossible_age_values],
+                "expected_severity": "high",
+            },
+            "unit_error_height": {
+                "column": "height_cm",
+                "count": 1,
+                "index": int(unit_error_index),
+                "value": 170000.0,
+                "expected_severity": "medium",
+            },
+            "extreme_salary": {
+                "column": "extreme_salary",
+                "count": 20,
+                "indices": [int(i) for i in extreme_indices],
+                "minority_target_count": 10,
+                "expected_severity": "medium",
+            },
+        },
+        "clean_controls": {
+            "clean_skewed_income": {"max_flag_pct": 0.05},
+            "clean_gaussian": {"max_flag_pct": 0.01},
+            "department": {"max_flag_pct": 0.0},
+            "is_active": {"max_flag_pct": 0.0},
+        },
+    }
+
+    truth_path = PLANTED_DIR / "outliers_truth.json"
+    with open(truth_path, "w", encoding="utf-8") as f:
+        json.dump(truth, f, indent=2, default=lambda o: int(o) if isinstance(o, (np.integer, int)) else float(o))
+
+    print(f"Created {outliers_csv.name} ({n_rows} rows) and {truth_path.name}")
+    return outliers_csv, truth_path
+
+
 def main():
     print("Generating planted datasets...")
     make_clean_control()
@@ -359,6 +481,7 @@ def main():
     make_duplicates_planted()
     make_prebalanced_planted()
     make_types_planted()
+    make_outliers_planted()
     print("All planted datasets successfully generated.")
 
 
