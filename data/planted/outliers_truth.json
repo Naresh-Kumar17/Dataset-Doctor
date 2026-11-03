@@ -1,0 +1,84 @@
+{
+  "module": "outliers",
+  "rows": 600,
+  "planted": {
+    "impossible_age": {
+      "column": "age",
+      "count": 10,
+      "indices": [
+        10,
+        25,
+        40,
+        80,
+        120,
+        180,
+        240,
+        310,
+        420,
+        500
+      ],
+      "values": [
+        -5.0,
+        -12.0,
+        145.0,
+        210.0,
+        999.0,
+        -1.0,
+        150.0,
+        300.0,
+        -99.0,
+        130.0
+      ],
+      "expected_severity": "high"
+    },
+    "unit_error_height": {
+      "column": "height_cm",
+      "count": 1,
+      "index": 35,
+      "value": 170000.0,
+      "expected_severity": "medium"
+    },
+    "extreme_salary": {
+      "column": "extreme_salary",
+      "count": 20,
+      "indices": [
+        419,
+        36,
+        160,
+        215,
+        408,
+        459,
+        469,
+        235,
+        569,
+        280,
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "minority_target_count": 10,
+      "expected_severity": "medium"
+    }
+  },
+  "clean_controls": {
+    "clean_skewed_income": {
+      "max_flag_pct": 0.05
+    },
+    "clean_gaussian": {
+      "max_flag_pct": 0.01
+    },
+    "department": {
+      "max_flag_pct": 0.0
+    },
+    "is_active": {
+      "max_flag_pct": 0.0
+    }
+  }
+}
