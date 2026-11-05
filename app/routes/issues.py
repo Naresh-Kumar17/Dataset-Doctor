@@ -20,6 +20,7 @@ SAMPLE_ACCIDENT = Path(__file__).resolve().parent.parent.parent / "data" / "samp
 SAMPLE_NULLS = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "nulls.csv"
 SAMPLE_DUPLICATES = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "duplicates.csv"
 SAMPLE_TYPES = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "types.csv"
+SAMPLE_OUTLIERS = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "outliers.csv"
 
 
 @router.get("/module/{module_id}", response_class=HTMLResponse)
@@ -80,6 +81,20 @@ def get_module_page(module_id: str, request: Request):
                 session.target_column = target_col
                 session.task_type = task_type
                 session.metadata = {"filename": "types.csv (Sample Preview)"}
+        except Exception:
+            df = None
+    elif module_id in ("outliers", "outliers_advisor") and SAMPLE_OUTLIERS.exists():
+        # Fallback to outliers planted dataset to show actual outliers diagnostics
+        try:
+            df, _ = load_csv(str(SAMPLE_OUTLIERS), filename="outliers.csv (Sample Preview)")
+            active_filename = active_filename or "outliers.csv (Sample Preview)"
+            target_col = "target"
+            task_type = "classification"
+            if session:
+                session.df = df
+                session.target_column = target_col
+                session.task_type = task_type
+                session.metadata = {"filename": "outliers.csv (Sample Preview)"}
         except Exception:
             df = None
     elif SAMPLE_ACCIDENT.exists():
@@ -190,6 +205,30 @@ def get_module_page(module_id: str, request: Request):
             except Exception:
                 iss.recommendation = None
 
+    elif module_id in ("outliers", "outliers_advisor") and df is not None:
+        from doctor.issues.outliers.detect import OutlierDetector
+        from doctor.issues.outliers.advise import OutlierAdvisor
+        detector = OutlierDetector()
+        advisor = OutlierAdvisor()
+        ctx = DetectionContext(target_column=target_col, task_type=task_type)
+        issues = detector.detect(df, ctx=ctx)
+
+        for iss in issues:
+            summary_counts[iss.severity] = summary_counts.get(iss.severity, 0) + 1
+            summary_counts[iss.certainty] = summary_counts.get(iss.certainty, 0) + 1
+            summary_counts["total"] += 1
+
+            try:
+                rec = advisor.advise(iss, df, target=target_col, ctx=ctx, measure=False)
+                iss.recommendation = {
+                    "option": rec.recommended,
+                    "reason": rec.reason,
+                    "confidence": rec.confidence,
+                    "options": rec.options,
+                }
+            except Exception:
+                iss.recommendation = None
+
     elif module_id == "split_eval" and df is not None:
         target = target_col or (df.columns[-1] if not df.empty else None)
         if target and target in df.columns:
@@ -216,13 +255,28 @@ def get_module_page(module_id: str, request: Request):
 
     def badge_formatter(evidence: dict) -> str:
         kind = evidence.get("kind", "")
-        if kind in ("text_number", "ambiguous_date", "date", "boolean", "constant", "id_like", "high_cardinality", "mixed_type"):
+        subtype = evidence.get("subtype", "")
+        if subtype in ("impossible_values", "unit_mixup", "extreme_tail") or "is_skewed" in evidence:
+            from doctor.issues.outliers.explain import format_outliers_badge
+            from doctor.base import Issue
+            mock_iss = Issue(
+                module_id="outliers",
+                column=None,
+                severity="high" if subtype == "impossible_values" else "medium",
+                certainty="certain" if subtype == "impossible_values" else "possible",
+                title="",
+                description="",
+                evidence=evidence,
+            )
+            return format_outliers_badge(mock_iss)
+        elif kind in ("text_number", "ambiguous_date", "date", "boolean", "constant", "id_like", "high_cardinality", "mixed_type"):
             from doctor.issues.types.explain import format_types_badge
             return format_types_badge(evidence)
         elif "kind" in evidence:
             from doctor.issues.duplicates.explain import format_duplicates_badge
             return format_duplicates_badge(evidence)
         return format_evidence_badge(evidence)
+
 
     return templates.TemplateResponse(
         request=request,
