@@ -233,4 +233,33 @@ def test_types_apply_route(auth_client):
     assert data["new_dtype"] == "float64"
 
 
+def test_outliers_module_page(auth_client):
+    response = auth_client.get("/module/outliers")
+    assert response.status_code == 200
+    assert "Outlier" in response.text
+    assert "OUTLIER ANOMALIES & REMEDIATION DECISIONS" in response.text
+
+
+def test_outliers_apply_route(auth_client):
+    # Upload planted outliers dataset
+    from pathlib import Path
+    outliers_csv = Path(__file__).resolve().parent.parent / "data" / "planted" / "outliers.csv"
+    with open(outliers_csv, "rb") as f:
+        auth_client.post(
+            "/upload",
+            files={"file": ("outliers.csv", f, "text/csv")},
+            follow_redirects=False,
+        )
+    resp = auth_client.post(
+        "/decide/outliers/apply",
+        json={"column": "age", "option_id": "set_to_null", "params": {}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert data["column"] == "age"
+    assert data["applied_option"] == "set_to_null"
+
+
+
 
