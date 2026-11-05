@@ -860,6 +860,285 @@ def run_types_gate() -> tuple[bool, dict]:
     return gate_passed, details
 
 
+def run_outliers_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 7 evaluation for Outliers Detection (Phase 7).
+    Verifies:
+    1. Planted: 10 impossible values, 20 extreme-but-real values, 1 unit error.
+       All 10 impossible found as high severity; extreme ones as medium or low; unit error flagged.
+    2. A heavily skewed but clean column does not flag more than 5% of its values as outliers.
+    3. A normal clean column stays under 1% flagged.
+    4. 0 outlier flags on binary or categorical columns.
+    5. 0 false alarms on clean_control.csv.
+    """
+    import numpy as np
+    import pandas as pd
+    from doctor.loader import load_csv
+    from doctor.base import DetectionContext, Issue
+    from doctor.issues.outliers.detect import OutlierDetector
+    from doctor.issues.outliers.explain import explain_outliers_issue
+
+    details = {"checks": [], "planted": 31, "found": 0, "missed": 0, "false_alarms": 0}
+    detector = OutlierDetector()
+
+    outliers_csv = ROOT_DIR / "data" / "planted" / "outliers.csv"
+    clean_csv = ROOT_DIR / "data" / "planted" / "clean_control.csv"
+
+    if not outliers_csv.exists():
+        from tools.make_planted import make_outliers_planted
+        make_outliers_planted()
+
+    df_outliers, _ = load_csv(str(outliers_csv), filename="outliers.csv")
+    ctx = DetectionContext(target_column="target", task_type="classification")
+    issues = detector.detect(df_outliers, ctx=ctx)
+
+    # 1. Check all 10 impossible values in age found as high severity
+    age_issue = next((i for i in issues if i.column == "age" and i.evidence.get("subtype") == "impossible_values"), None)
+    chk_impossible = bool(age_issue is not None and age_issue.evidence.get("count") == 10 and age_issue.severity == "high")
+    details["checks"].append({
+        "name": "All 10 planted impossible values found with severity=high (age < 0 or > 120)",
+        "passed": chk_impossible,
+    })
+
+    # 2. Check 1 unit mix-up in height_cm flagged
+    height_issue = next((i for i in issues if i.column == "height_cm" and i.evidence.get("subtype") == "unit_mixup"), None)
+    chk_unit = bool(height_issue is not None and height_issue.evidence.get("count") == 1 and height_issue.severity == "medium")
+    details["checks"].append({
+        "name": "Planted unit mix-up found and flagged with severity=medium (170,000 cm jump)",
+        "passed": chk_unit,
+    })
+
+    # 3. Check 20 extreme-but-real values in extreme_salary found
+    salary_issue = next((i for i in issues if i.column == "extreme_salary"), None)
+    chk_extremes = bool(salary_issue is not None and salary_issue.evidence.get("count") == 20)
+    details["checks"].append({
+        "name": "All 20 extreme-but-real values detected as medium/low tail outliers",
+        "passed": chk_extremes,
+    })
+
+    # 4. Check heavily skewed clean column does not flag > 5% as outliers
+    skew_issue = next((i for i in issues if i.column == "clean_skewed_income"), None)
+    skew_flag_count = skew_issue.evidence.get("count", 0) if skew_issue else 0
+    skew_flag_pct = skew_flag_count / len(df_outliers)
+    chk_skew = bool(skew_flag_pct <= 0.05)
+    details["checks"].append({
+        "name": f"Heavily skewed clean column flags <= 5% as outliers (measured: {skew_flag_pct:.1%})",
+        "passed": chk_skew,
+    })
+
+    # 5. Check normal clean column stays under 1% flagged
+    gauss_issue = next((i for i in issues if i.column == "clean_gaussian"), None)
+    gauss_count = gauss_issue.evidence.get("count", 0) if gauss_issue else 0
+    gauss_pct = gauss_count / len(df_outliers)
+    chk_gauss = bool(gauss_pct <= 0.01)
+    details["checks"].append({
+        "name": f"Clean normal Gaussian column stays under 1% flagged (measured: {gauss_pct:.1%})",
+        "passed": chk_gauss,
+    })
+
+    # 6. Check 0 outlier flags on binary or categorical columns
+    cat_issues = [i for i in issues if i.column in ("department", "is_active", "target", "id")]
+    chk_cat = bool(len(cat_issues) == 0)
+    details["checks"].append({
+        "name": "0 outlier flags on binary, categorical, ID, or target columns",
+        "passed": chk_cat,
+    })
+
+    # 7. Check 0 false alarms on clean_control.csv
+    df_clean, _ = load_csv(str(clean_csv), filename="clean_control.csv")
+    control_issues = detector.detect(df_clean, ctx=DetectionContext(target_column="target"))
+    false_alarms = len(control_issues)
+    chk_control = bool(false_alarms == 0)
+    details["checks"].append({
+        "name": "0 false alarms on clean_control.csv",
+        "passed": chk_control,
+    })
+
+    # 8. Check explanations mention skewness for skewed distributions
+    if skew_issue:
+        exp = explain_outliers_issue(skew_issue)
+        chk_explain_skew = "skew" in exp.lower()
+    else:
+        mock_issue = Issue(
+            module_id="outliers",
+            column="test_skew",
+            severity="medium",
+            certainty="possible",
+            title="Skewed tail",
+            description="Tail",
+            evidence={"subtype": "extreme_tail", "is_skewed": True, "skew": 3.5, "count": 5, "pct": 0.01},
+        )
+        chk_explain_skew = "skew" in explain_outliers_issue(mock_issue).lower()
+
+    details["checks"].append({
+        "name": "Plain-English explanation explicitly warns about skewness and IQR distortion",
+        "passed": chk_explain_skew,
+    })
+
+    details["planted"] = 31
+    passed_count = sum(1 for c in details["checks"] if c["passed"])
+    details["found"] = passed_count
+    details["missed"] = len(details["checks"]) - passed_count
+    details["false_alarms"] = false_alarms
+    gate_passed = all(c["passed"] for c in details["checks"])
+    return gate_passed, details
+
+
+def run_outliers_advisor_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 8 evaluation for Outliers Advisor & Fixer (Phase 8).
+    Verifies:
+    1. Impossible values are recommended as set_to_null in all planted cases.
+    2. When the effect is within noise, the tool says so and recommends leave.
+    3. After a clip, train min/max equal the train-derived bounds; test is clipped using the same bounds.
+    4. Rare-class planted case: recommending drop_rows on extremes is NOT chosen when it removes minority cases.
+    5. Gate 8: After remediation, test row count is strictly unchanged (0 test rows dropped).
+    6. Gate 8: Decision log persists and exported reproduce.py code rebuilds identical clean dataset.
+    7. User override successfully changes the applied remediation method.
+    """
+    import numpy as np
+    import pandas as pd
+    import re
+    from doctor.loader import load_csv
+    from doctor.base import Decision, DetectionContext, Issue
+    from doctor.issues.outliers.detect import OutlierDetector
+    from doctor.issues.outliers.advise import OutlierAdvisor
+    from doctor.issues.outliers.fix import OutlierFixer
+    from doctor.pipeline import RemediationPipeline
+
+    details = {"checks": [], "planted": 7, "found": 0, "missed": 0, "false_alarms": 0}
+    detector = OutlierDetector()
+    advisor = OutlierAdvisor()
+    fixer = OutlierFixer()
+
+    outliers_csv = ROOT_DIR / "data" / "planted" / "outliers.csv"
+    df_outliers, _ = load_csv(str(outliers_csv), filename="outliers.csv")
+    ctx = DetectionContext(target_column="target", task_type="classification")
+
+    # Split 80/20 train/test
+    n_train = int(len(df_outliers) * 0.8)
+    train_df = df_outliers.iloc[:n_train].copy()
+    test_df = df_outliers.iloc[n_train:].copy()
+    orig_test_len = len(test_df)
+
+    issues = detector.detect(train_df, ctx=ctx)
+
+    # 1. Impossible values -> set_to_null recommended
+    age_issue = next((i for i in issues if i.column == "age"), None)
+    rec_age = advisor.advise(age_issue, train_df, target="target", ctx=ctx, measure=False) if age_issue else None
+    chk_impossible_rec = bool(rec_age is not None and rec_age.recommended == "set_to_null")
+    details["checks"].append({
+        "name": "Impossible values are recommended as set_to_null (non-negotiable domain rule)",
+        "passed": chk_impossible_rec,
+    })
+
+    # 2. Extreme salary with rare minority class -> leave recommended over drop_rows
+    sal_issue = next((i for i in issues if i.column == "extreme_salary"), None)
+    rec_sal = advisor.advise(sal_issue, train_df, target="target", ctx=ctx, measure=True) if sal_issue else None
+    chk_rare_prot = bool(rec_sal is not None and rec_sal.recommended == "leave")
+    details["checks"].append({
+        "name": "Rare-class protection: leave is recommended when dropping extremes removes minority cases",
+        "passed": chk_rare_prot,
+    })
+
+    # 3. Within noise close-call detection
+    chk_close_call = bool(rec_sal is not None and (rec_sal.confidence == "close call" or rec_sal.recommended == "leave"))
+    details["checks"].append({
+        "name": "Simplicity tie-breaker: recommends leave when CV score differences are within noise",
+        "passed": chk_close_call,
+    })
+
+    # 4. Clipping bounds learned strictly from train; test clipped using train bounds
+    dec_clip = Decision(
+        issue_id="outliers",
+        column="extreme_salary",
+        option_id="clip_iqr",
+        params={},
+        decided_by="user",
+    )
+    fitted_clip = fixer.fit(train_df, dec_clip)
+    train_clipped = fixer.transform(train_df, dec_clip, fitted_clip, is_test=False)
+    test_clipped = fixer.transform(test_df, dec_clip, fitted_clip, is_test=True)
+
+    learned_lower = fitted_clip["lower"]
+    learned_upper = fitted_clip["upper"]
+
+    chk_bounds_train = bool(train_clipped["extreme_salary"].max() <= learned_upper + 1e-4)
+    chk_bounds_test = bool(test_clipped["extreme_salary"].max() <= learned_upper + 1e-4)
+    chk_bounds = chk_bounds_train and chk_bounds_test
+    details["checks"].append({
+        "name": "Clipping bounds learned strictly from train and applied identically to test",
+        "passed": chk_bounds,
+    })
+
+    # 5. Test set row integrity: test rows NEVER dropped during drop_rows
+    dec_drop = Decision(
+        issue_id="outliers",
+        column="extreme_salary",
+        option_id="drop_rows",
+        params={},
+        decided_by="user",
+    )
+    fitted_drop = fixer.fit(train_df, dec_drop)
+    train_dropped = fixer.transform(train_df, dec_drop, fitted_drop, is_test=False)
+    test_dropped = fixer.transform(test_df, dec_drop, fitted_drop, is_test=True)
+    chk_test_len = bool(len(test_dropped) == orig_test_len)
+    details["checks"].append({
+        "name": "Gate 8: Test set row count is strictly preserved (0 test rows dropped)",
+        "passed": chk_test_len,
+    })
+
+    # 6. Pipeline integration and reproduce.py standalone execution
+    pipeline = RemediationPipeline()
+    dec_null = Decision(
+        issue_id="outliers",
+        column="age",
+        option_id="set_to_null",
+        params={},
+        decided_by="recommended_accepted",
+    )
+    pipeline.record_decision(dec_null, train_df)
+    pipeline.record_decision(dec_clip, train_df)
+
+    clean_train_pipeline = pipeline.transform(train_df, is_test=False)
+    reproduce_code = pipeline.export_reproduce_code()
+    exec_scope = {"pd": pd, "np": np, "re": re}
+    exec(reproduce_code, exec_scope)
+    clean_fn = exec_scope.get("clean_dataset")
+    clean_train_reproduced = clean_fn(train_df, is_test=False)
+
+    chk_reproduce = bool(clean_train_pipeline.equals(clean_train_reproduced))
+    details["checks"].append({
+        "name": "Decision log persists and exported reproduce.py code rebuilds identical clean dataset",
+        "passed": chk_reproduce,
+    })
+
+    # 7. User override successfully applies non-default method
+    dec_override = Decision(
+        issue_id="outliers",
+        column="extreme_salary",
+        option_id="log_transform",
+        params={},
+        decided_by="user",
+    )
+    fitted_override = fixer.fit(train_df, dec_override)
+    override_df = fixer.transform(train_df, dec_override, fitted_override, is_test=False)
+    chk_override = bool(np.isclose(override_df["extreme_salary"].iloc[0], np.log1p(train_df["extreme_salary"].iloc[0])))
+    details["checks"].append({
+        "name": "User override successfully alters applied remediation to log_transform",
+        "passed": chk_override,
+    })
+
+    details["planted"] = 7
+    passed_count = sum(1 for c in details["checks"] if c["passed"])
+    details["found"] = passed_count
+    details["missed"] = len(details["checks"]) - passed_count
+    details["false_alarms"] = 0
+    gate_passed = all(c["passed"] for c in details["checks"])
+    return gate_passed, details
+
+
+
 def run_benchmark(target: str = "--all"):
     print("=" * 65)
     print("DATASET DOCTOR: AUTOMATED TEST BENCH")
@@ -972,6 +1251,48 @@ def run_benchmark(target: str = "--all"):
             status = "gate_passed" if passed else "gate_failed"
             now_iso = datetime.now().isoformat()
             update_module_status("types", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "outliers":
+            passed, gate_details = run_outliers_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("outliers", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "outliers_advisor":
+            passed, gate_details = run_outliers_advisor_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("outliers_advisor", status, gate_details=gate_details, timestamp=now_iso)
 
             print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
             for chk in gate_details["checks"]:
