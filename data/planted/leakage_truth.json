@@ -1,0 +1,54 @@
+{
+  "module": "leakage",
+  "rows": 1000,
+  "target_column": "target",
+  "planted": {
+    "target_copy": {
+      "column": "target_copy",
+      "subtype": "target_copy",
+      "expected_severity": "high",
+      "expected_certainty": "certain",
+      "is_leak": true
+    },
+    "target_scaled": {
+      "column": "target_scaled",
+      "subtype": "target_scaled",
+      "expected_severity": "high",
+      "expected_certainty": "certain",
+      "is_leak": true
+    },
+    "target_inverted": {
+      "column": "target_inverted",
+      "subtype": "target_inverted",
+      "expected_severity": "high",
+      "expected_certainty": "certain",
+      "is_leak": true
+    },
+    "id_leak": {
+      "column": "id_leak",
+      "subtype": "index_leak",
+      "expected_severity": "high",
+      "expected_certainty": "certain",
+      "is_leak": true
+    },
+    "payout_amount": {
+      "column": "payout_amount",
+      "subtype": "perfect_predictor",
+      "expected_severity": "high",
+      "expected_certainty": "certain",
+      "is_leak": true
+    },
+    "legit_strong": {
+      "column": "legit_strong",
+      "subtype": "legitimate_feature",
+      "expected_severity": "none",
+      "is_leak": false
+    },
+    "timestamp_col": {
+      "column": "timestamp_col",
+      "subtype": "time_order_risk",
+      "expected_severity": "medium",
+      "is_leak": true
+    }
+  }
+}

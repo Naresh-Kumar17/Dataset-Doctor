@@ -561,6 +561,128 @@ def make_imbalance_planted():
     return imbalance_csv, truth_path
 
 
+
+
+def make_leakage_planted():
+    """
+    Creates data/planted/leakage.csv and truth JSON following Gate 11 specifications.
+    Planted leakage defects:
+    - target_copy: Direct clone of target (correlation = 1.0, severity = high)
+    - target_scaled: Scalar linear transform y * 2.5 + 10 (correlation = 1.0, severity = high)
+    - target_inverted: Inverted binary clone 1 - y (correlation = -1.0, severity = high)
+    - id_leak: Row index/sequence correlating 0.96 with target (severity = high)
+    - payout_amount: Post-event feature correlating 0.99 with target (severity = high)
+    - legit_strong: Legitimate honest feature correlating ~0.68 (must NOT be flagged high)
+    - timestamp_col: Monotonic increasing time series (triggers time-split warning)
+    - noise_1, noise_2: Random Gaussian noise controls (zero correlation)
+    """
+    np.random.seed(42)
+    n_rows = 1000
+
+    # 1. Base classification target (70% class 0, 30% class 1)
+    target = np.random.choice([0, 1], p=[0.70, 0.30], size=n_rows)
+
+    # 2. Planted leakage columns
+    target_copy = target.copy()
+    target_scaled = target * 2.5 + 10.0
+    target_inverted = 1 - target
+
+    # Row index leak: sorted sequence correlating > 0.95 with target
+    id_leak = target * 1000.0 + np.random.normal(0, 80, size=n_rows)
+
+    # Post-event payout amount: only positive when target=1 with slight noise (r > 0.98)
+    payout_amount = np.where(target == 1, 5000.0 + np.random.normal(0, 50, size=n_rows), 0.0)
+
+    # Legitimate strong feature: honest correlation ~ 0.68
+    legit_strong = 1.8 * target + np.random.normal(0, 1.0, size=n_rows)
+
+    # Noise controls
+    noise_1 = np.random.normal(0, 1.0, size=n_rows)
+    noise_2 = np.random.normal(10, 2.5, size=n_rows)
+
+    # Monotonic timestamps
+    base_time = pd.Timestamp("2024-01-01 08:00:00")
+    timestamps = [str(base_time + pd.Timedelta(minutes=15 * i)) for i in range(n_rows)]
+
+    df_leakage = pd.DataFrame({
+        "id": np.arange(1, n_rows + 1),
+        "target": target,
+        "target_copy": target_copy,
+        "target_scaled": target_scaled,
+        "target_inverted": target_inverted,
+        "id_leak": id_leak,
+        "payout_amount": payout_amount,
+        "legit_strong": legit_strong,
+        "noise_1": noise_1,
+        "noise_2": noise_2,
+        "timestamp_col": timestamps,
+    })
+
+    leakage_csv = PLANTED_DIR / "leakage.csv"
+    df_leakage.to_csv(leakage_csv, index=False)
+
+    truth = {
+        "module": "leakage",
+        "rows": n_rows,
+        "target_column": "target",
+        "planted": {
+            "target_copy": {
+                "column": "target_copy",
+                "subtype": "target_copy",
+                "expected_severity": "high",
+                "expected_certainty": "certain",
+                "is_leak": True,
+            },
+            "target_scaled": {
+                "column": "target_scaled",
+                "subtype": "target_scaled",
+                "expected_severity": "high",
+                "expected_certainty": "certain",
+                "is_leak": True,
+            },
+            "target_inverted": {
+                "column": "target_inverted",
+                "subtype": "target_inverted",
+                "expected_severity": "high",
+                "expected_certainty": "certain",
+                "is_leak": True,
+            },
+            "id_leak": {
+                "column": "id_leak",
+                "subtype": "index_leak",
+                "expected_severity": "high",
+                "expected_certainty": "certain",
+                "is_leak": True,
+            },
+            "payout_amount": {
+                "column": "payout_amount",
+                "subtype": "perfect_predictor",
+                "expected_severity": "high",
+                "expected_certainty": "certain",
+                "is_leak": True,
+            },
+            "legit_strong": {
+                "column": "legit_strong",
+                "subtype": "legitimate_feature",
+                "expected_severity": "none",
+                "is_leak": False,
+            },
+            "timestamp_col": {
+                "column": "timestamp_col",
+                "subtype": "time_order_risk",
+                "expected_severity": "medium",
+                "is_leak": True,
+            },
+        },
+    }
+
+    truth_path = PLANTED_DIR / "leakage_truth.json"
+    with open(truth_path, "w", encoding="utf-8") as f:
+        json.dump(truth, f, indent=2, default=lambda o: int(o) if isinstance(o, (np.integer, int)) else float(o))
+
+    print(f"Created {leakage_csv.name} ({n_rows} rows) and {truth_path.name}")
+    return leakage_csv, truth_path
+
 def main():
     print("Generating planted datasets...")
     make_clean_control()
@@ -570,6 +692,7 @@ def main():
     make_types_planted()
     make_outliers_planted()
     make_imbalance_planted()
+    make_leakage_planted()
     print("All planted datasets successfully generated.")
 
 
