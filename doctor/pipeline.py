@@ -33,6 +33,36 @@ class PipelineStep:
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
+
+
+CANONICAL_ORDER = [
+    "types",
+    "nulls",
+    "duplicates",
+    "outliers",
+    "imbalance",
+    "leakage",
+]
+
+
+def get_stage_index(issue_id: str) -> int:
+    """Returns canonical execution index for a given diagnostic issue category."""
+    iss = (issue_id or "").lower()
+    if iss.startswith("type"):
+        return 0
+    if iss.startswith("null"):
+        return 1
+    if iss.startswith("dup"):
+        return 2
+    if iss.startswith("outlier"):
+        return 3
+    if iss.startswith("imbalance"):
+        return 4
+    if iss.startswith("leak"):
+        return 5
+    return 99
+
+
 class RemediationPipeline:
     """
     Manages the sequential execution, decision logging, and export of dataset remediations.
@@ -54,18 +84,19 @@ class RemediationPipeline:
         self.decisions.append(decision)
         fitted = {}
         if train_df is not None:
+            curr_train = self.transform(train_df) if len(self.steps) > 0 else train_df
             if decision.issue_id.startswith("null") or decision.issue_id == "null_fixer":
-                fitted = self._null_fixer.fit(train_df, decision)
+                fitted = self._null_fixer.fit(curr_train, decision)
             elif decision.issue_id == "duplicates" or decision.issue_id.startswith("dup"):
-                fitted = self._duplicate_fixer.fit(train_df, decision)
+                fitted = self._duplicate_fixer.fit(curr_train, decision)
             elif decision.issue_id == "types" or decision.issue_id.startswith("type"):
-                fitted = self._type_fixer.fit(train_df, decision)
+                fitted = self._type_fixer.fit(curr_train, decision)
             elif decision.issue_id == "outliers" or decision.issue_id.startswith("outlier"):
-                fitted = self._outlier_fixer.fit(train_df, decision)
+                fitted = self._outlier_fixer.fit(curr_train, decision)
             elif decision.issue_id == "imbalance" or decision.issue_id.startswith("imbalance"):
-                fitted = self._imbalance_fixer.fit(train_df, decision)
+                fitted = self._imbalance_fixer.fit(curr_train, decision)
             elif decision.issue_id == "leakage" or decision.issue_id.startswith("leak"):
-                fitted = self._leakage_fixer.fit(train_df, decision)
+                fitted = self._leakage_fixer.fit(curr_train, decision)
 
         step = PipelineStep(
             step_id=f"step_{len(self.steps) + 1}",
@@ -121,6 +152,77 @@ class RemediationPipeline:
                     df_curr = self._leakage_fixer.transform(df_curr, temp_dec, step.fitted_params, is_test=is_test)
         return df_curr
 
+    def is_canonical_order(self) -> bool:
+        """Checks if recorded steps follow strict canonical causal execution order."""
+        indices = [get_stage_index(s.issue_id) for s in self.steps]
+        return all(indices[i] <= indices[i + 1] for i in range(len(indices) - 1))
+
+    def reorder_to_canonical(self) -> None:
+        """Sorts pipeline steps into strict canonical causal order while preserving intra-stage order."""
+        self.steps.sort(key=lambda s: get_stage_index(s.issue_id))
+
+    def validate_ordering(self) -> Dict[str, Any]:
+        """Validates current step sequence against canonical causal order and returns any violations."""
+        violations = []
+        for i in range(len(self.steps) - 1):
+            curr_idx = get_stage_index(self.steps[i].issue_id)
+            next_idx = get_stage_index(self.steps[i + 1].issue_id)
+            if curr_idx > next_idx:
+                violations.append({
+                    "step_before": self.steps[i].step_id,
+                    "issue_before": self.steps[i].issue_id,
+                    "step_after": self.steps[i + 1].step_id,
+                    "issue_after": self.steps[i + 1].issue_id,
+                    "reason": f"Stage '{self.steps[i].issue_id}' must not execute before '{self.steps[i + 1].issue_id}'.",
+                })
+        return {
+            "is_valid": len(violations) == 0,
+            "violations": violations,
+            "canonical_order": CANONICAL_ORDER,
+        }
+
+    def compare_before_after(
+        self,
+        raw_df: pd.DataFrame,
+        cleaned_df: pd.DataFrame,
+        target_column: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Produces comprehensive side-by-side audit report comparing raw data to cleaned pipeline output.
+        """
+        raw_nulls = int(raw_df.isna().sum().sum())
+        clean_nulls = int(cleaned_df.isna().sum().sum())
+        raw_dups = int(raw_df.duplicated().sum())
+        clean_dups = int(cleaned_df.duplicated().sum())
+
+        dropped_cols = [c for c in raw_df.columns if c not in cleaned_df.columns]
+        added_cols = [c for c in cleaned_df.columns if c not in raw_df.columns]
+
+        class_dist_raw = None
+        class_dist_clean = None
+        if target_column and target_column in raw_df.columns and target_column in cleaned_df.columns:
+            class_dist_raw = raw_df[target_column].value_counts(normalize=True).round(4).to_dict()
+            class_dist_clean = cleaned_df[target_column].value_counts(normalize=True).round(4).to_dict()
+
+        return {
+            "raw_shape": list(raw_df.shape),
+            "cleaned_shape": list(cleaned_df.shape),
+            "rows_delta": len(cleaned_df) - len(raw_df),
+            "cols_delta": len(cleaned_df.columns) - len(raw_df.columns),
+            "nulls_before": raw_nulls,
+            "nulls_after": clean_nulls,
+            "nulls_eliminated": raw_nulls - clean_nulls,
+            "duplicates_before": raw_dups,
+            "duplicates_after": clean_dups,
+            "duplicates_eliminated": raw_dups - clean_dups,
+            "dropped_columns": dropped_cols,
+            "added_columns": added_cols,
+            "target_distribution_before": class_dist_raw,
+            "target_distribution_after": class_dist_clean,
+            "is_canonical": self.is_canonical_order(),
+            "total_steps": len(self.steps),
+        }
+
     def get_decision_log(self) -> List[Dict[str, Any]]:
         """Returns JSON-serializable decision audit trail."""
         return [
@@ -135,7 +237,7 @@ class RemediationPipeline:
             for s in self.steps
         ]
 
-    def export_reproduce_code(self, raw_data_path: str = "data.csv") -> str:
+    def export_reproduce_code(self, raw_data_path: str = "data.csv", canonical_order: bool = True) -> str:
         """
         Generates standalone, executable Python script reproduce.py.
         """
@@ -154,7 +256,8 @@ class RemediationPipeline:
             '',
         ]
 
-        for s in self.steps:
+        steps_to_emit = sorted(self.steps, key=lambda st: get_stage_index(st.issue_id)) if canonical_order else self.steps
+        for s in steps_to_emit:
             col = s.column
             opt = s.option_id
             params = s.fitted_params
