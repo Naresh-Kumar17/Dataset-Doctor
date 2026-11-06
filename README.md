@@ -14,8 +14,8 @@
 ### *The Data-to-Model Quality, ML Reliability & Leak-Free Remediation Platform*
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live%20on%20Render-00E599?style=for-the-badge&logo=render&logoColor=000)](https://dataset-doctor-8c7b.onrender.com/)
-[![Gate 10 PASS](https://img.shields.io/badge/Gate%2010-PASS%20(10%2F10)-7CFFB2?style=for-the-badge&logo=checkmarx&logoColor=000)](docs/gate_log.md)
-[![Test Suite](https://img.shields.io/badge/Tests-130%20Passed-FFD93D?style=for-the-badge&logo=pytest&logoColor=000)](tests/)
+[![Gate 12 PASS](https://img.shields.io/badge/Gate%2012-PASS%20(12%2F12)-7CFFB2?style=for-the-badge&logo=checkmarx&logoColor=000)](docs/gate_log.md)
+[![Test Suite](https://img.shields.io/badge/Tests-143%20Passed-FFD93D?style=for-the-badge&logo=pytest&logoColor=000)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.14-6BCBFF?style=for-the-badge&logo=python&logoColor=000)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-B197FC?style=for-the-badge)](LICENSE)
 [![Privacy First](https://img.shields.io/badge/Privacy-100%25%20Local%20First-FF6B9D?style=for-the-badge)](docs/authentication%20and%20security.md)
@@ -281,8 +281,8 @@ Core Progress: [████████████████████░�
 | **8** | Outlier Advisor & Fixer | 🟢 **PASS** | 2026-11-12 | Rare-class extreme protection, train bounds clipping, test row preservation |
 | **9** | Class Imbalance Detection & Diagnosis | 🟢 **PASS** | 2026-11-10 | Imbalance ratios, minority share, accuracy paradox, real-world prevalence prompt |
 | **10** | Class Imbalance Advisor & Remediation | 🟢 **PASS** | 2026-11-13 | Train-only resampling (weights, oversample, SMOTE), test set untouched |
-| **11** | Data Leakage Detection | ⚪ **SCHEDULED** | Scheduled | Near-perfect single features, target copies, ID leaks, time inversion |
-| **12** | Data Leakage Advisor & Prevention | ⚪ **SCHEDULED** | Scheduled | Evidence-based column drop recommendations, time-ordered splits |
+| **11** | Data Leakage Detection | 🟢 **PASS** | 2026-11-05 | Near-perfect single features, target copies, ID leaks, time inversion |
+| **12** | Data Leakage Advisor & Prevention | 🟢 **PASS** | 2026-11-06 | Evidence-based column drop recommendations, time-ordered splits, test row preservation |
 | **13** | End-to-End Pipeline, Report & Clean Export | ⚪ **SCHEDULED** | Scheduled | 10-step causal order verification, before/after compare diff, deployment |
 
 ---

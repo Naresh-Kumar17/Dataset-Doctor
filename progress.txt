@@ -75,3 +75,25 @@
 - [x] Integration test suite: Web routes and decision apply API tests in tests/test_web_routes.py and tests/test_decide_routes.py.
 - [x] Automated benchmark: Gate 10 runner passing 9 of 9 checks.
 - [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 9 completed modules (Gates 2 through 10).
+
+
+## Phase 11: Data Leakage Detection (Gate PASS)
+- [x] Synthetic planted dataset generation: target copies (r = 1.0), scaled target, inverted target (r = -1.0), ID sequence leak (r = 0.985), payout proxy (r = 0.9999), legitimate strong predictor (r ~0.65), and temporal ordering feature.
+- [x] Core leakage issue package and public exports (LeakageDetector, LeakageAdvisor, LeakageFixer, explainers, badges).
+- [x] LeakageDetector implementation: Pearson correlation scan (|r| >= 0.95), target duplicate detection, index monotonic correlation analysis, and temporal ordering warning.
+- [x] Immunity guard: legitimate strong predictors (|r| <= 0.85) are strictly protected from high-severity leakage alarms.
+- [x] Plain-English explanations & badge formatters: markdown explanations and Neo-brutalist severity chips.
+- [x] UI Module View: Neo-brutalist leakage workbench, critical leak summary cards, and temporal risk notice banner.
+- [x] Automated benchmark: Gate 11 runner passing 9 of 9 checks with 0 false alarms on clean control.
+
+## Phase 12: Data Leakage Advisor & Prevention (Gate PASS)
+- [x] LeakageAdvisor implementation: evidence-backed recommendations (drop_column for direct/proxy leaks, time_split for temporal sequences).
+- [x] LeakageFixer implementation: drops leaking columns identically across train and test partitions.
+- [x] Strict test partition preservation: 100% row preservation on train and test; test class ratio is 100% unchanged (0 rows dropped).
+- [x] RemediationPipeline integration: sequential fit/transform, decision logging, and standalone reproduce.py export.
+- [x] Web API endpoints: POST /decide/leakage/apply with session decision tracking.
+- [x] Interactive UI decision controls: 1-click remediation actions for Drop Leaking Column and Acknowledge & Keep.
+- [x] Unit test suite: 10 unit tests in tests/issues/test_leakage.py covering detection, advice, fixing, test set preservation, and reproduce script execution.
+- [x] Integration test suite: Web routes and decision apply API tests in tests/test_web_routes.py and tests/test_decide_routes.py.
+- [x] Automated benchmark: Gate 12 runner passing 7 of 7 checks.
+- [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 11 completed modules (Gates 2 through 12).

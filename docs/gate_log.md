@@ -182,7 +182,38 @@
 
 ---
 
-## Future Gates Pipeline (Phases 11–21 Specifications)
+## 2026-11-05  Phase 11: Data Leakage Detection   PASS
+- Automated benchmark runner verified via `python -m doctor.bench leakage` and `python -m doctor.bench --all`:
+  - 9 of 9 Gate 11 checks PASSED:
+    - [PASS] Planted direct target copy (`target_copy`) detected with high severity (r = 1.0).
+    - [PASS] Planted linearly scaled target (`target_scaled`) detected with high severity (r = 1.0).
+    - [PASS] Planted inverted target (`target_inverted`) detected with high severity (r = -1.0).
+    - [PASS] Planted row-index / ID sequence leak (`id_leak`) detected with high severity (r = 0.985).
+    - [PASS] Planted post-outcome payout proxy (`payout_amount`) detected with high severity (r = 0.9999).
+    - [PASS] Legitimate strong predictor (`legit_strong`, r ~0.65) NOT flagged as high severity leak (immunity guard).
+    - [PASS] Temporal column (`timestamp_col`) flagged as time-split risk (recommends time-based split).
+    - [PASS] 0 false alarms on `clean_control.csv`.
+    - [PASS] Leakage detection executes rapidly (0.031s < 2.0s).
+- Full project test suite: 10 unit tests in `tests/issues/test_leakage.py` passing cleanly.
+- Neo-brutalist interactive data leakage workbench integrated into `/module/leakage` with summary cards, evidence badges, and leak risk descriptions.
+
+## 2026-11-06  Phase 12: Data Leakage Advisor & Prevention   PASS
+- Automated benchmark runner verified via `python -m doctor.bench leakage_advisor` and `python -m doctor.bench --all`:
+  - 7 of 7 Gate 12 checks PASSED:
+    - [PASS] Advisor recommends 'drop_column' for all high-severity leaking features (`target_copy`, `target_scaled`, `target_inverted`, `id_leak`, `payout_amount`).
+    - [PASS] Advisor recommends 'time_split' for time-order risk column (`timestamp_col`).
+    - [PASS] Fixer successfully removes leaking column from feature space.
+    - [PASS] Gate 12 Invariant: 100% row preservation on train and test partitions (0 rows dropped).
+    - [PASS] Gate 12 Invariant: Test set class distribution is 100% preserved.
+    - [PASS] RemediationPipeline integration: all leaks removed and reproduce code exported cleanly.
+    - [PASS] User override ('keep_with_acknowledgement') successfully preserves column.
+- Web API endpoints: `POST /decide/leakage/apply` with session decision tracking.
+- Interactive decision controls: 1-click remediation actions for [DROP LEAKING COLUMN] and [ACKNOWLEDGE & KEEP].
+- Complete regression suite: 100% PASS across all 11 benchmark modules (Gates 2 through 12).
+
+---
+
+## Future Gates Pipeline (Phases 13–21 Specifications)
 
 ### Gate 9: Class Imbalance Detection (Scheduled)
 - Planted targets: 90/10, 99/1, multi-class with tiny minority (5%), and 50/50 balanced control.
