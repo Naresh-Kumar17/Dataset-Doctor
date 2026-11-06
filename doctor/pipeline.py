@@ -18,6 +18,7 @@ from doctor.issues.duplicates.fix import DuplicateFixer
 from doctor.issues.types.fix import TypeFixer
 from doctor.issues.outliers.fix import OutlierFixer
 from doctor.issues.imbalance.fix import ImbalanceFixer
+from doctor.issues.leakage.fix import LeakageFixer
 
 
 @dataclass
@@ -44,6 +45,7 @@ class RemediationPipeline:
         self._type_fixer = TypeFixer()
         self._outlier_fixer = OutlierFixer()
         self._imbalance_fixer = ImbalanceFixer()
+        self._leakage_fixer = LeakageFixer()
 
     def record_decision(self, decision: Decision, train_df: Optional[pd.DataFrame] = None) -> PipelineStep:
         """
@@ -62,6 +64,8 @@ class RemediationPipeline:
                 fitted = self._outlier_fixer.fit(train_df, decision)
             elif decision.issue_id == "imbalance" or decision.issue_id.startswith("imbalance"):
                 fitted = self._imbalance_fixer.fit(train_df, decision)
+            elif decision.issue_id == "leakage" or decision.issue_id.startswith("leak"):
+                fitted = self._leakage_fixer.fit(train_df, decision)
 
         step = PipelineStep(
             step_id=f"step_{len(self.steps) + 1}",
@@ -89,7 +93,6 @@ class RemediationPipeline:
                 elif step.issue_id == "types" or step.issue_id.startswith("type"):
                     df_curr = self._type_fixer.transform(df_curr, step.fitted_params, is_test=is_test)
                 elif step.issue_id == "outliers" or step.issue_id.startswith("outlier"):
-                    # Create temporary Decision object for fixer
                     temp_dec = Decision(
                         issue_id=step.issue_id,
                         column=step.column,
@@ -107,6 +110,15 @@ class RemediationPipeline:
                         decided_by=step.decided_by,
                     )
                     df_curr = self._imbalance_fixer.transform(df_curr, temp_dec, step.fitted_params, is_test=is_test)
+                elif step.issue_id == "leakage" or step.issue_id.startswith("leak"):
+                    temp_dec = Decision(
+                        issue_id=step.issue_id,
+                        column=step.column,
+                        option_id=step.option_id,
+                        params=step.fitted_params,
+                        decided_by=step.decided_by,
+                    )
+                    df_curr = self._leakage_fixer.transform(df_curr, temp_dec, step.fitted_params, is_test=is_test)
         return df_curr
 
     def get_decision_log(self) -> List[Dict[str, Any]]:
@@ -303,7 +315,7 @@ class RemediationPipeline:
                 lines.append('            data = pd.DataFrame(_X_res, columns=_X.columns)')
                 lines.append(f'            data[{repr(col)}] = _y_res')
 
-            elif opt in ("threshold_tuning", "leave"):
+            elif opt in ("threshold_tuning", "leave", "keep_with_acknowledgement", "time_split"):
                 lines.append(f'    # Strategy "{opt}" on {repr(col)} preserves natural data distribution.')
 
             lines.append('')
