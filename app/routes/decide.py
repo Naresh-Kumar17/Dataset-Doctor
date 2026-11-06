@@ -26,6 +26,7 @@ from app.security import sanitize_text_input
 router = APIRouter(prefix="/decide", tags=["decide"])
 SAMPLE_ACCIDENT = Path(__file__).resolve().parent.parent.parent / "data" / "samples" / "accident.csv"
 SAMPLE_NULLS = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "nulls.csv"
+SAMPLE_LEAKAGE = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "leakage.csv"
 
 
 class ApplyDecisionRequest(BaseModel):
@@ -61,6 +62,22 @@ def _get_active_df_and_target(request: Request, column: Optional[str] = None) ->
                 session.task_type = "classification"
                 session.metadata = {"filename": "nulls.csv (Sample Preview)"}
                 return df_nulls, "target", "classification", session
+        except Exception:
+            pass
+
+    # Check if requested column specifically exists in SAMPLE_LEAKAGE
+    if column is not None and SAMPLE_LEAKAGE.exists():
+        from doctor.loader import load_csv
+        try:
+            df_leak, _ = load_csv(str(SAMPLE_LEAKAGE), filename="leakage.csv")
+            if column in df_leak.columns:
+                if session is None:
+                    session = create_session()
+                session.df = df_leak
+                session.target_column = "target"
+                session.task_type = "classification"
+                session.metadata = {"filename": "leakage.csv (Sample Preview)"}
+                return df_leak, "target", "classification", session
         except Exception:
             pass
 
@@ -552,6 +569,62 @@ def apply_imbalance_decision(req: ApplyImbalanceDecisionRequest, request: Reques
         "rows_delta": rows_delta,
         "fitted_params": fitted,
         "message": f"Successfully applied '{req.option_id}' to target column '{req.column}'.",
+    }
+
+
+
+
+class ApplyLeakageDecisionRequest(BaseModel):
+    column: str
+    option_id: str
+    params: Optional[Dict[str, Any]] = None
+    decided_by: Optional[str] = "user"
+
+
+@router.post("/leakage/apply")
+def apply_leakage_decision(req: ApplyLeakageDecisionRequest, request: Request):
+    """
+    Applies data leakage remediation (drop_column, keep_with_acknowledgement, time_split).
+    """
+    df, target_col, _, session = _get_active_df_and_target(request, column=req.column)
+    from doctor.issues.leakage.fix import LeakageFixer
+    fixer = LeakageFixer()
+    params = req.params or {}
+
+    clean_decided_by = sanitize_text_input(req.decided_by or "user", 50)
+    decision = Decision(
+        issue_id="leakage",
+        column=req.column,
+        option_id=req.option_id,
+        params=params,
+        decided_by=clean_decided_by,
+    )
+    fitted = fixer.fit(df, decision)
+    df_transformed = fixer.transform(df, decision, fitted, is_test=False)
+
+    cols_before = len(df.columns)
+    cols_after = len(df_transformed.columns)
+    cols_delta = cols_after - cols_before
+
+    if session:
+        session.df = df_transformed
+        session.decisions.append({
+            "issue_id": "leakage",
+            "column": req.column,
+            "option_id": req.option_id,
+            "params": params,
+            "decided_by": req.decided_by or "user",
+            "fitted_params": fitted,
+        })
+
+    return {
+        "status": "success",
+        "column": req.column,
+        "applied_option": req.option_id,
+        "cols_delta": cols_delta,
+        "rows_count": len(df_transformed),
+        "fitted_params": fitted,
+        "message": f"Successfully applied '{req.option_id}' to column '{req.column}'.",
     }
 
 

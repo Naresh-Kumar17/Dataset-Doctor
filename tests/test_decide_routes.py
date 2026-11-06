@@ -135,3 +135,20 @@ def test_decide_imbalance_apply(auth_client):
     data = res.json()
     assert data["status"] == "success"
     assert data["applied_option"] == "random_oversample"
+
+
+def test_decide_leakage_apply(auth_client):
+    from pathlib import Path
+    leakage_csv = Path(__file__).resolve().parent.parent / "data" / "planted" / "leakage.csv"
+    with open(leakage_csv, "rb") as f:
+        auth_client.post("/upload", files={"file": ("leakage.csv", f, "text/csv")})
+
+    res = auth_client.post(
+        "/decide/leakage/apply",
+        json={"column": "target_copy", "option_id": "drop_column", "params": {}},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert data["applied_option"] == "drop_column"
+    assert data["cols_delta"] == -1
