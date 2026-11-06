@@ -1,0 +1,21 @@
+{
+  "dataset": "pipeline",
+  "rows_total": 1040,
+  "original_rows": 1000,
+  "planted_duplicates": 40,
+  "planted_nulls_phone": 60,
+  "planted_nulls_notes": 700,
+  "planted_outliers_price": 10,
+  "planted_leak_columns": [
+    "target_copy"
+  ],
+  "target_imbalance_ratio": 9.0,
+  "canonical_order": [
+    "types",
+    "nulls",
+    "duplicates",
+    "outliers",
+    "imbalance",
+    "leakage"
+  ]
+}

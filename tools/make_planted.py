@@ -683,6 +683,87 @@ def make_leakage_planted():
     print(f"Created {leakage_csv.name} ({n_rows} rows) and {truth_path.name}")
     return leakage_csv, truth_path
 
+
+
+def make_pipeline_planted():
+    """
+    Creates data/planted/pipeline.csv and pipeline_truth.json (Phase 13).
+    Planted features contain interlocking multi-domain issues:
+    1. 'price': Currency text strings like '$1,200' with planted extreme outliers ('$99,000').
+       Order dependency: 'types' (convert_to_numeric) MUST precede 'outliers' (clip).
+    2. 'phone': Contains 60 'N/A' hidden null tokens.
+    3. 'notes': High missingness (70% NaN).
+    4. Planted exact duplicates (40 rows duplicated).
+    5. 'target_copy': Direct target leakage copy (must be dropped).
+    6. 'target': 90/10 class imbalance target.
+    """
+    np.random.seed(42)
+    n_rows = 1000
+
+    target = np.zeros(n_rows, dtype=int)
+    target[:100] = 1  # 10% minority class (90/10 imbalance)
+    np.random.shuffle(target)
+
+    # 1. Price: text with currency symbol and extreme outlier
+    raw_prices = np.random.normal(500, 50, size=n_rows)
+    # Plant 10 extreme outliers
+    outlier_idx = np.random.choice(n_rows, 10, replace=False)
+    raw_prices[outlier_idx] = 99000.0
+    price_strings = [f"${p:,.2f}" for p in raw_prices]
+
+    # 2. Phone: hidden tokens
+    phone_vals = [f"555-01{i:02d}" for i in range(n_rows)]
+    null_idx = np.random.choice(n_rows, 60, replace=False)
+    for idx in null_idx:
+        phone_vals[idx] = "N/A"
+
+    # 3. Notes: 70% missing
+    notes_vals = [f"Note_{i}" for i in range(n_rows)]
+    notes_null_idx = np.random.choice(n_rows, 700, replace=False)
+    for idx in notes_null_idx:
+        notes_vals[idx] = np.nan
+
+    # 4. Target copy (leakage)
+    target_copy = target.copy()
+
+    df = pd.DataFrame({
+        "id": np.arange(1, n_rows + 1),
+        "price": price_strings,
+        "phone": phone_vals,
+        "notes": notes_vals,
+        "target_copy": target_copy,
+        "feature_norm": np.random.normal(10, 2, size=n_rows),
+        "target": target,
+    })
+
+    # Plant 40 exact duplicates by copying first 40 rows
+    dups = df.iloc[:40].copy()
+    df = pd.concat([df, dups], ignore_index=True)
+
+    pipeline_csv = PLANTED_DIR / "pipeline.csv"
+    df.to_csv(pipeline_csv, index=False)
+
+    truth = {
+        "dataset": "pipeline",
+        "rows_total": len(df),
+        "original_rows": n_rows,
+        "planted_duplicates": 40,
+        "planted_nulls_phone": 60,
+        "planted_nulls_notes": 700,
+        "planted_outliers_price": 10,
+        "planted_leak_columns": ["target_copy"],
+        "target_imbalance_ratio": 9.0,
+        "canonical_order": ["types", "nulls", "duplicates", "outliers", "imbalance", "leakage"],
+    }
+
+    truth_path = PLANTED_DIR / "pipeline_truth.json"
+    with open(truth_path, "w", encoding="utf-8") as f:
+        json.dump(truth, f, indent=2)
+
+    print(f"Created {pipeline_csv.name} ({len(df)} rows) and {truth_path.name}")
+    return pipeline_csv, truth_path
+
+
 def main():
     print("Generating planted datasets...")
     make_clean_control()
@@ -693,6 +774,7 @@ def main():
     make_outliers_planted()
     make_imbalance_planted()
     make_leakage_planted()
+    make_pipeline_planted()
     print("All planted datasets successfully generated.")
 
 
