@@ -91,14 +91,14 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
         name="Data Leakage Detection",
         phase=11,
         description="Catch target copies, perfect predictor features, ID leaks, and time-order leaks.",
-        status="not_built",
+        status="gate_passed",
     ),
     "leakage_advisor": ModuleInfo(
         id="leakage_advisor",
         name="Data Leakage Advisor & Prevention",
         phase=12,
         description="Evidence-backed column drop recommendations and leak-free split validation.",
-        status="not_built",
+        status="gate_passed",
     ),
     "pipeline": ModuleInfo(
         id="pipeline",

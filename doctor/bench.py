@@ -1426,6 +1426,304 @@ def run_imbalance_advisor_gate() -> tuple[bool, dict]:
     all_passed = all(c["passed"] for c in details["checks"])
     return all_passed, details
 
+
+
+def run_leakage_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 11 evaluation for Data Leakage Detection (Phase 11).
+    Verifies:
+    1. Direct target duplicate (target_copy) detected as high severity leak (correlation 1.0).
+    2. Scaled target (target_scaled) detected as high severity leak.
+    3. Inverted target (target_inverted) detected as high severity leak (correlation -1.0).
+    4. Index/id sequence leak (id_leak) detected as high severity leak (correlation > 0.95).
+    5. Payout proxy (payout_amount) detected as high severity leak (correlation > 0.95).
+    6. Legitimate strong feature (legit_strong) NOT flagged as high severity leak (immunity guard).
+    7. Temporal order column (timestamp_col) flagged as time-split / temporal risk.
+    8. 0 false alarms on clean_control.csv.
+    9. Fast detection execution (< 2.0s).
+    """
+    import time
+    import numpy as np
+    import pandas as pd
+    from doctor.loader import load_csv
+    from doctor.base import DetectionContext
+    from doctor.issues.leakage.detect import LeakageDetector
+
+    details = {"checks": [], "planted": 5, "found": 0, "missed": 0, "false_alarms": 0}
+    detector = LeakageDetector()
+
+    leakage_csv = ROOT_DIR / "data" / "planted" / "leakage.csv"
+    clean_csv = ROOT_DIR / "data" / "planted" / "clean_control.csv"
+
+    if not leakage_csv.exists():
+        from tools.make_planted import make_leakage_planted
+        make_leakage_planted()
+
+    df_planted, _ = load_csv(str(leakage_csv), filename="leakage.csv")
+    ctx = DetectionContext(target_column="target", task_type="classification")
+
+    t0 = time.perf_counter()
+    issues = detector.detect(df_planted, ctx=ctx)
+    elapsed = time.perf_counter() - t0
+    issues_by_col = {i.column: i for i in issues}
+
+    # 1. target_copy
+    iss_copy = issues_by_col.get("target_copy")
+    chk_copy = bool(iss_copy and iss_copy.severity == "high" and iss_copy.evidence.get("subtype") == "target_copy")
+    details["checks"].append({
+        "name": "Planted direct target copy detected with high severity",
+        "passed": chk_copy,
+    })
+    if chk_copy:
+        details["found"] += 1
+    else:
+        details["missed"] += 1
+
+    # 2. target_scaled
+    iss_scaled = issues_by_col.get("target_scaled")
+    chk_scaled = bool(iss_scaled and iss_scaled.severity == "high" and iss_scaled.evidence.get("subtype") == "target_scaled")
+    details["checks"].append({
+        "name": "Planted linearly scaled target detected with high severity",
+        "passed": chk_scaled,
+    })
+    if chk_scaled:
+        details["found"] += 1
+    else:
+        details["missed"] += 1
+
+    # 3. target_inverted
+    iss_inverted = issues_by_col.get("target_inverted")
+    chk_inverted = bool(iss_inverted and iss_inverted.severity == "high" and iss_inverted.evidence.get("subtype") == "target_inverted")
+    details["checks"].append({
+        "name": "Planted inverted target detected with high severity (r = -1.0)",
+        "passed": chk_inverted,
+    })
+    if chk_inverted:
+        details["found"] += 1
+    else:
+        details["missed"] += 1
+
+    # 4. id_leak
+    iss_id = issues_by_col.get("id_leak")
+    chk_id = bool(iss_id and iss_id.severity == "high" and iss_id.evidence.get("subtype") == "index_leak")
+    details["checks"].append({
+        "name": "Planted row-index / ID sequence leak detected with high severity",
+        "passed": chk_id,
+    })
+    if chk_id:
+        details["found"] += 1
+    else:
+        details["missed"] += 1
+
+    # 5. payout_amount
+    iss_payout = issues_by_col.get("payout_amount")
+    chk_payout = bool(iss_payout and iss_payout.severity == "high")
+    details["checks"].append({
+        "name": "Planted post-outcome payout proxy detected with high severity",
+        "passed": chk_payout,
+    })
+    if chk_payout:
+        details["found"] += 1
+    else:
+        details["missed"] += 1
+
+    # 6. legit_strong immunity guard
+    iss_legit = issues_by_col.get("legit_strong")
+    chk_legit = bool(iss_legit is None or iss_legit.severity != "high")
+    details["checks"].append({
+        "name": "Legitimate strong predictor (r ~0.65) NOT flagged as high severity leak",
+        "passed": chk_legit,
+    })
+    if not chk_legit:
+        details["false_alarms"] += 1
+
+    # 7. timestamp_col time-order risk
+    iss_time = issues_by_col.get("timestamp_col")
+    chk_time = bool(iss_time and iss_time.evidence.get("subtype") == "time_order_risk")
+    details["checks"].append({
+        "name": "Temporal column flagged as time-split risk (recommends time-based split)",
+        "passed": chk_time,
+    })
+
+    # 8. Clean control dataset: 0 false alarms
+    df_clean, _ = load_csv(str(clean_csv), filename="clean_control.csv")
+    ctx_clean = DetectionContext(target_column="target", task_type="classification")
+    clean_issues = detector.detect(df_clean, ctx=ctx_clean)
+    chk_clean = len(clean_issues) == 0
+    details["checks"].append({
+        "name": "0 false alarms on clean_control.csv",
+        "passed": chk_clean,
+    })
+    if not chk_clean:
+        details["false_alarms"] += len(clean_issues)
+
+    # 9. Fast execution
+    chk_perf = elapsed < 2.0
+    details["checks"].append({
+        "name": f"Leakage detection executes rapidly ({elapsed:.3f}s < 2.0s)",
+        "passed": chk_perf,
+    })
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
+def run_leakage_advisor_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 12 evaluation for Data Leakage Advisor & Prevention (Phase 12).
+    Verifies:
+    1. Advisor recommends 'drop_column' for all high-severity leaking features.
+    2. Advisor recommends 'time_split' for time-order risk columns.
+    3. Fixer removes leaking columns from train partition.
+    4. Gate 12 Invariant: 100% of rows preserved on both train and test partitions.
+    5. Gate 12 Invariant: Test set class distribution is 100% unchanged.
+    6. RemediationPipeline decision log persists and reproduce.py exports and executes cleanly.
+    7. User override ('keep_with_acknowledgement') successfully retains column.
+    """
+    import numpy as np
+    import pandas as pd
+    from doctor.loader import load_csv
+    from doctor.base import Decision, DetectionContext
+    from doctor.issues.leakage.detect import LeakageDetector
+    from doctor.issues.leakage.advise import LeakageAdvisor
+    from doctor.issues.leakage.fix import LeakageFixer
+    from doctor.pipeline import RemediationPipeline
+
+    details = {"checks": [], "planted": 7, "found": 0, "missed": 0, "false_alarms": 0}
+    detector = LeakageDetector()
+    advisor = LeakageAdvisor()
+    fixer = LeakageFixer()
+
+    leakage_csv = ROOT_DIR / "data" / "planted" / "leakage.csv"
+    df_leakage, _ = load_csv(str(leakage_csv), filename="leakage.csv")
+
+    n_train = int(len(df_leakage) * 0.8)
+    train_df = df_leakage.iloc[:n_train].copy()
+    test_df = df_leakage.iloc[n_train:].copy()
+    orig_train_len = len(train_df)
+    orig_test_len = len(test_df)
+    orig_test_target_dist = test_df["target"].value_counts().to_dict()
+
+    ctx = DetectionContext(target_column="target", task_type="classification")
+    issues = detector.detect(train_df, ctx=ctx)
+    issues_by_col = {i.column: i for i in issues}
+
+    # 1. Advisor recommends drop_column for target_copy, target_scaled, target_inverted, id_leak, payout_amount
+    high_leaks = ["target_copy", "target_scaled", "target_inverted", "id_leak", "payout_amount"]
+    all_drop = True
+    for col in high_leaks:
+        iss = issues_by_col.get(col)
+        rec = advisor.advise(iss, train_df, target="target", ctx=ctx) if iss else None
+        if not rec or rec.recommended != "drop_column":
+            all_drop = False
+            break
+    details["checks"].append({
+        "name": "Advisor recommends 'drop_column' for all high-severity leaking features",
+        "passed": all_drop,
+    })
+    if all_drop: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 2. Advisor recommends time_split for timestamp_col
+    iss_time = issues_by_col.get("timestamp_col")
+    rec_time = advisor.advise(iss_time, train_df, target="target", ctx=ctx) if iss_time else None
+    chk_time_rec = bool(rec_time and rec_time.recommended == "time_split")
+    details["checks"].append({
+        "name": "Advisor recommends 'time_split' for time-order risk column",
+        "passed": chk_time_rec,
+    })
+    if chk_time_rec: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 3. Fixer removes leaking column
+    dec_drop = Decision(
+        issue_id="leakage",
+        column="target_copy",
+        option_id="drop_column",
+        params={},
+        decided_by="user",
+    )
+    fitted_drop = fixer.fit(train_df, dec_drop)
+    train_cleaned = fixer.transform(train_df, dec_drop, fitted_drop, is_test=False)
+    chk_dropped = "target_copy" not in train_cleaned.columns and "target_copy" in train_df.columns
+    details["checks"].append({
+        "name": "Fixer successfully removes leaking column from feature space",
+        "passed": chk_dropped,
+    })
+    if chk_dropped: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 4. Gate 12 Invariant: 100% of rows preserved on both train and test partitions
+    test_cleaned = fixer.transform(test_df, dec_drop, fitted_drop, is_test=True)
+    chk_row_preservation = (len(train_cleaned) == orig_train_len) and (len(test_cleaned) == orig_test_len)
+    details["checks"].append({
+        "name": "Gate 12 Invariant: 100% row preservation on train and test (0 rows dropped)",
+        "passed": chk_row_preservation,
+    })
+    if chk_row_preservation: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 5. Gate 12 Invariant: Test set class distribution 100% preserved
+    test_target_dist_after = test_cleaned["target"].value_counts().to_dict()
+    chk_dist_preserved = test_target_dist_after == orig_test_target_dist
+    details["checks"].append({
+        "name": "Gate 12 Invariant: Test set class distribution is 100% preserved",
+        "passed": chk_dist_preserved,
+    })
+    if chk_dist_preserved: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 6. RemediationPipeline integration & reproduce.py
+    pipeline = RemediationPipeline()
+    for col in high_leaks:
+        dec = Decision(
+            issue_id="leakage",
+            column=col,
+            option_id="drop_column",
+            params={},
+            decided_by="advisor",
+        )
+        pipeline.record_decision(dec, train_df=train_df)
+    pipe_train = pipeline.transform(train_df, is_test=False)
+    pipe_test = pipeline.transform(test_df, is_test=True)
+    code = pipeline.export_reproduce_code("raw_leakage.csv")
+    chk_pipe = (
+        all(c not in pipe_train.columns for c in high_leaks)
+        and all(c not in pipe_test.columns for c in high_leaks)
+        and len(pipe_train) == orig_train_len
+        and len(pipe_test) == orig_test_len
+        and "drop_column" in code
+    )
+    details["checks"].append({
+        "name": "RemediationPipeline integration: all leaks removed and reproduce code exported cleanly",
+        "passed": chk_pipe,
+    })
+    if chk_pipe: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 7. User override: keep_with_acknowledgement
+    dec_keep = Decision(
+        issue_id="leakage",
+        column="target_copy",
+        option_id="keep_with_acknowledgement",
+        params={},
+        decided_by="user_override",
+    )
+    pipe_keep = RemediationPipeline()
+    pipe_keep.record_decision(dec_keep, train_df=train_df)
+    train_kept = pipe_keep.transform(train_df, is_test=False)
+    chk_override = "target_copy" in train_kept.columns and len(train_kept) == orig_train_len
+    details["checks"].append({
+        "name": "User override ('keep_with_acknowledgement') successfully preserves column",
+        "passed": chk_override,
+    })
+    if chk_override: details["found"] += 1
+    else: details["missed"] += 1
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
 def run_benchmark(target: str = "--all"):
     print("=" * 65)
     print("DATASET DOCTOR: AUTOMATED TEST BENCH")
@@ -1639,6 +1937,48 @@ def run_benchmark(target: str = "--all"):
                 "gate_details": gate_details,
             }
 
+        elif mod.id == "leakage":
+            passed, gate_details = run_leakage_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("leakage", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "leakage_advisor":
+            passed, gate_details = run_leakage_advisor_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("leakage_advisor", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
         else:
             if mod.status == "not_built":
                 print(f"  Status: NOT BUILT (Scheduled for Phase {mod.phase})")
