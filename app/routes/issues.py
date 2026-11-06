@@ -22,6 +22,7 @@ SAMPLE_DUPLICATES = Path(__file__).resolve().parent.parent.parent / "data" / "pl
 SAMPLE_TYPES = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "types.csv"
 SAMPLE_OUTLIERS = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "outliers.csv"
 SAMPLE_IMBALANCE = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "imbalance.csv"
+SAMPLE_LEAKAGE = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "leakage.csv"
 
 
 @router.get("/module/{module_id}", response_class=HTMLResponse)
@@ -110,6 +111,20 @@ def get_module_page(module_id: str, request: Request):
                 session.target_column = target_col
                 session.task_type = task_type
                 session.metadata = {"filename": "imbalance.csv (Sample Preview)"}
+        except Exception:
+            df = None
+    elif module_id in ("leakage", "leakage_advisor") and SAMPLE_LEAKAGE.exists():
+        # Fallback to leakage planted dataset to show data leakage diagnostics
+        try:
+            df, _ = load_csv(str(SAMPLE_LEAKAGE), filename="leakage.csv (Sample Preview)")
+            active_filename = active_filename or "leakage.csv (Sample Preview)"
+            target_col = "target"
+            task_type = "classification"
+            if session:
+                session.df = df
+                session.target_column = target_col
+                session.task_type = task_type
+                session.metadata = {"filename": "leakage.csv (Sample Preview)"}
         except Exception:
             df = None
     elif SAMPLE_ACCIDENT.exists():
@@ -267,6 +282,30 @@ def get_module_page(module_id: str, request: Request):
             except Exception:
                 iss.recommendation = None
 
+    elif module_id in ("leakage", "leakage_advisor") and df is not None:
+        from doctor.issues.leakage.detect import LeakageDetector
+        from doctor.issues.leakage.advise import LeakageAdvisor
+        detector = LeakageDetector()
+        advisor = LeakageAdvisor()
+        ctx = DetectionContext(target_column=target_col, task_type=task_type)
+        issues = detector.detect(df, ctx=ctx)
+
+        for iss in issues:
+            summary_counts[iss.severity] = summary_counts.get(iss.severity, 0) + 1
+            summary_counts[iss.certainty] = summary_counts.get(iss.certainty, 0) + 1
+            summary_counts["total"] += 1
+
+            try:
+                rec = advisor.advise(iss, df, target=target_col, ctx=ctx, measure=False)
+                iss.recommendation = {
+                    "option": rec.recommended,
+                    "reason": rec.reason,
+                    "confidence": rec.confidence,
+                    "options": rec.options,
+                }
+            except Exception:
+                iss.recommendation = None
+
     elif module_id == "split_eval" and df is not None:
         target = target_col or (df.columns[-1] if not df.empty else None)
         if target and target in df.columns:
@@ -313,6 +352,9 @@ def get_module_page(module_id: str, request: Request):
         elif "imbalance_ratio" in evidence or "minority_share" in evidence or evidence.get("kind") == "imbalance":
             from doctor.issues.imbalance.explain import format_imbalance_badge
             return format_imbalance_badge(evidence)
+        elif "leak_type" in evidence or evidence.get("kind") == "leakage" or evidence.get("subtype") in ("target_copy", "target_scaled", "target_inverted", "index_leak", "time_order_risk"):
+            from doctor.issues.leakage.explain import format_leakage_badge
+            return format_leakage_badge(evidence)
         elif "kind" in evidence:
             from doctor.issues.duplicates.explain import format_duplicates_badge
             return format_duplicates_badge(evidence)

@@ -292,3 +292,32 @@ def test_imbalance_apply_route(auth_client):
     assert data["status"] == "success"
     assert data["column"] == "target_90_10"
     assert data["applied_option"] == "class_weight"
+
+
+def test_leakage_module_page(auth_client):
+    response = auth_client.get("/module/leakage")
+    assert response.status_code == 200
+    assert "Leakage" in response.text
+    assert "DATA LEAKAGE DIAGNOSTICS & REMEDIATION" in response.text
+    assert "target_copy" in response.text
+
+
+def test_leakage_apply_route(auth_client):
+    from pathlib import Path
+    leakage_csv = Path(__file__).resolve().parent.parent / "data" / "planted" / "leakage.csv"
+    with open(leakage_csv, "rb") as f:
+        auth_client.post(
+            "/upload",
+            files={"file": ("leakage.csv", f, "text/csv")},
+            follow_redirects=False,
+        )
+    resp = auth_client.post(
+        "/decide/leakage/apply",
+        json={"column": "target_copy", "option_id": "drop_column", "params": {}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert data["column"] == "target_copy"
+    assert data["applied_option"] == "drop_column"
+    assert data["cols_delta"] == -1
