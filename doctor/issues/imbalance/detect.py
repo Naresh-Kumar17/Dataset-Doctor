@@ -29,9 +29,15 @@ class ImbalanceDetector(Detector):
         if target_col and target_col in df.columns:
             candidates.append(target_col)
         else:
-            # Check columns named 'target' or low-cardinality discrete columns (<= 10 unique)
+            # Check candidate target columns by standard target naming conventions
             for c in df.columns:
-                if "target" in c.lower() or df[c].nunique() in [2, 3, 4, 5]:
+                lower = c.lower()
+                if (
+                    "target" in lower
+                    or lower in ("label", "outcome", "y", "class", "severe_accident")
+                    or lower.endswith("_label")
+                    or lower.endswith("_target")
+                ):
                     candidates.append(c)
 
         for col in candidates:
@@ -58,12 +64,14 @@ class ImbalanceDetector(Detector):
             class_shares = {str(k): float(v / total) for k, v in value_counts.items()}
             class_counts = {str(k): int(v) for k, v in value_counts.items()}
 
-            # Determine severity
-            if minority_share < 0.10:
+            # Determine severity & certainty
+            if minority_share <= 0.10 or imbalance_ratio >= 9.0:
                 severity: SeverityLevel = "high"
+                certainty: CertaintyLevel = "certain"
                 title = f"Severe Class Imbalance in '{col}' ({minority_share:.1%} minority)"
-            elif minority_share < 0.20:
+            elif minority_share < 0.20 or imbalance_ratio >= 4.0:
                 severity: SeverityLevel = "medium"
+                certainty: CertaintyLevel = "possible"
                 title = f"Moderate Class Imbalance in '{col}' ({minority_share:.1%} minority)"
             else:
                 # Balanced (>= 20% minority share) -> Stay quiet
@@ -72,10 +80,11 @@ class ImbalanceDetector(Detector):
             desc = (
                 f"Column '{col}' has {n_classes} classes with an imbalance ratio of {imbalance_ratio:.1f}:1. "
                 f"Minority class '{minority_class}' represents only {minority_count} of {total} rows ({minority_share:.1%}). "
-                f"Models evaluated by accuracy alone will appear falsely accurate while completely failing on the minority class."
+                f"A naive majority classifier achieves {(1.0 - minority_share):.1%} accuracy while missing 100% of minority cases."
             )
 
             evidence: Dict[str, Any] = {
+                "kind": "imbalance",
                 "column": col,
                 "n_classes": n_classes,
                 "is_multiclass": n_classes > 2,
@@ -88,6 +97,7 @@ class ImbalanceDetector(Detector):
                 "class_counts": class_counts,
                 "class_shares": class_shares,
                 "prompt_real_world": f"Is {minority_share:.1%} the true rate in the real world?",
+                "accuracy_paradox_warning": f"A baseline model predicting only class '{majority_class}' scores {(1.0 - minority_share):.1%} accuracy with 0% minority recall.",
             }
 
             issues.append(
@@ -95,7 +105,7 @@ class ImbalanceDetector(Detector):
                     module_id="imbalance",
                     column=col,
                     severity=severity,
-                    certainty="certain",
+                    certainty=certainty,
                     title=title,
                     description=desc,
                     evidence=evidence,
