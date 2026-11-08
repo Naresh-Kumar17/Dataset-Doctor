@@ -1,7 +1,7 @@
 """
 Dataset Doctor: Class Imbalance Plain-English Explanations & Badge Formatters.
 """
-from typing import Optional
+from typing import Any, Optional, Union
 from doctor.base import Issue
 
 
@@ -9,7 +9,7 @@ def explain_imbalance_issue(issue: Issue) -> str:
     """
     Generates a clear, non-technical plain-English explanation of the class imbalance finding.
     """
-    ev = issue.evidence
+    ev = issue.evidence or {}
     col = issue.column or "target"
     minority_share = ev.get("minority_share", 0.1)
     imbalance_ratio = ev.get("imbalance_ratio", 10.0)
@@ -31,11 +31,30 @@ def explain_imbalance_issue(issue: Issue) -> str:
     return "\n".join(lines)
 
 
-def format_imbalance_badge(severity: str, minority_share: Optional[float] = None) -> str:
+def format_imbalance_badge(item: Any, minority_share: Optional[float] = None) -> str:
     """
     Renders a Neo-Brutalist HTML badge token for imbalance severity.
+    Accepts string severity, Issue object, or evidence dictionary.
     """
-    pct_text = f" ({minority_share:.1%})" if minority_share is not None else ""
+    if isinstance(item, str):
+        severity = item
+        pct = minority_share
+    elif hasattr(item, "severity") and hasattr(item, "evidence"):
+        severity = item.severity
+        pct = item.evidence.get("minority_share")
+    elif isinstance(item, dict):
+        pct = item.get("minority_share")
+        if pct is not None and pct <= 0.10:
+            severity = "high"
+        elif pct is not None and pct < 0.20:
+            severity = "medium"
+        else:
+            severity = "low"
+    else:
+        severity = "low"
+        pct = minority_share
+
+    pct_text = f" ({pct:.1%})" if pct is not None else ""
     if severity == "high":
         return f'<span class="chip high">SEVERE IMBALANCE{pct_text}</span>'
     elif severity == "medium":
