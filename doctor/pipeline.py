@@ -16,6 +16,7 @@ from doctor.base import Decision
 from doctor.issues.nulls.fix import NullFixer
 from doctor.issues.duplicates.fix import DuplicateFixer
 from doctor.issues.types.fix import TypeFixer
+from doctor.issues.outliers.fix import OutlierFixer
 
 
 @dataclass
@@ -40,6 +41,7 @@ class RemediationPipeline:
         self._null_fixer = NullFixer()
         self._duplicate_fixer = DuplicateFixer()
         self._type_fixer = TypeFixer()
+        self._outlier_fixer = OutlierFixer()
 
     def record_decision(self, decision: Decision, train_df: Optional[pd.DataFrame] = None) -> PipelineStep:
         """
@@ -54,6 +56,8 @@ class RemediationPipeline:
                 fitted = self._duplicate_fixer.fit(train_df, decision)
             elif decision.issue_id == "types" or decision.issue_id.startswith("type"):
                 fitted = self._type_fixer.fit(train_df, decision)
+            elif decision.issue_id == "outliers" or decision.issue_id.startswith("outlier"):
+                fitted = self._outlier_fixer.fit(train_df, decision)
 
         step = PipelineStep(
             step_id=f"step_{len(self.steps) + 1}",
@@ -73,13 +77,23 @@ class RemediationPipeline:
         """
         df_curr = df.copy()
         for step in self.steps:
-            if step.fitted_params:
+            if step.fitted_params is not None:
                 if step.issue_id.startswith("null"):
                     df_curr = self._null_fixer.transform(df_curr, step.fitted_params, is_test=is_test)
                 elif step.issue_id == "duplicates" or step.issue_id.startswith("dup"):
                     df_curr = self._duplicate_fixer.transform(df_curr, step.fitted_params, is_test=is_test)
                 elif step.issue_id == "types" or step.issue_id.startswith("type"):
                     df_curr = self._type_fixer.transform(df_curr, step.fitted_params, is_test=is_test)
+                elif step.issue_id == "outliers" or step.issue_id.startswith("outlier"):
+                    # Create temporary Decision object for fixer
+                    temp_dec = Decision(
+                        issue_id=step.issue_id,
+                        column=step.column,
+                        option_id=step.option_id,
+                        params=step.fitted_params,
+                        decided_by=step.decided_by,
+                    )
+                    df_curr = self._outlier_fixer.transform(df_curr, temp_dec, step.fitted_params, is_test=is_test)
         return df_curr
 
     def get_decision_log(self) -> List[Dict[str, Any]]:
@@ -220,6 +234,33 @@ class RemediationPipeline:
             elif opt == "coerce_numeric":
                 lines.append(f'    if {repr(col)} in data.columns:')
                 lines.append(f'        data[{repr(col)}] = pd.to_numeric(data[{repr(col)}], errors="coerce")')
+
+            elif opt == "set_to_null":
+                lines.append(f'    if {repr(col)} in data.columns:')
+                if col and (col.lower() == "age" or col.lower().endswith("_age")):
+                    lines.append(f'        data.loc[(data[{repr(col)}] < 0) | (data[{repr(col)}] > 120), {repr(col)}] = np.nan')
+                elif col and any(t in col.lower() for t in ["pct", "percent", "discount", "rate"]):
+                    lines.append(f'        data.loc[(data[{repr(col)}] < 0) | (data[{repr(col)}] > 100), {repr(col)}] = np.nan')
+                else:
+                    lines.append(f'        data.loc[data[{repr(col)}] < 0, {repr(col)}] = np.nan')
+
+            elif opt in ("clip_iqr", "clip_percentile"):
+                lower = params.get("lower")
+                upper = params.get("upper")
+                lines.append(f'    if {repr(col)} in data.columns:')
+                lines.append(f'        data[{repr(col)}] = data[{repr(col)}].clip(lower={lower}, upper={upper})')
+
+            elif opt == "log_transform":
+                shift = params.get("shift", 0.0)
+                lines.append(f'    if {repr(col)} in data.columns:')
+                lines.append(f'        data[{repr(col)}] = np.log1p(pd.to_numeric(data[{repr(col)}], errors="coerce") + {shift})')
+
+            elif opt == "drop_rows":
+                lower = params.get("lower")
+                upper = params.get("upper")
+                lines.append('    if not is_test:')
+                lines.append(f'        if {repr(col)} in data.columns:')
+                lines.append(f'            data = data[(data[{repr(col)}] >= {lower}) & (data[{repr(col)}] <= {upper})].copy()')
 
             lines.append('')
 
