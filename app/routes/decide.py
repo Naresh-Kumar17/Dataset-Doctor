@@ -449,6 +449,59 @@ def apply_type_decision(req: ApplyTypeDecisionRequest, request: Request):
     }
 
 
+class ApplyOutlierDecisionRequest(BaseModel):
+    column: str
+    option_id: str
+    params: Optional[Dict[str, Any]] = None
+    decided_by: Optional[str] = "user"
+
+
+@router.post("/outliers/apply")
+def apply_outlier_decision(req: ApplyOutlierDecisionRequest, request: Request):
+    """
+    Applies outlier remediation (set_to_null, clip_iqr, clip_percentile, log_transform, drop_rows, leave).
+    """
+    df, target_col, _, session = _get_active_df_and_target(request, column=req.column)
+    from doctor.issues.outliers.fix import OutlierFixer
+    fixer = OutlierFixer()
+    params = req.params or {}
+
+    clean_decided_by = sanitize_text_input(req.decided_by or "user", 50)
+    decision = Decision(
+        issue_id="outliers",
+        column=req.column,
+        option_id=req.option_id,
+        params=params,
+        decided_by=clean_decided_by,
+    )
+    fitted = fixer.fit(df, decision)
+    df_transformed = fixer.transform(df, decision, fitted, is_test=False)
+
+    rows_before = len(df)
+    rows_after = len(df_transformed)
+    rows_dropped = rows_before - rows_after
+
+    if session:
+        session.df = df_transformed
+        session.decisions.append({
+            "issue_id": "outliers",
+            "column": req.column,
+            "option_id": req.option_id,
+            "params": params,
+            "decided_by": req.decided_by or "user",
+            "fitted_params": fitted,
+        })
+
+    return {
+        "status": "success",
+        "column": req.column,
+        "applied_option": req.option_id,
+        "rows_dropped": rows_dropped,
+        "fitted_params": fitted,
+        "message": f"Successfully applied '{req.option_id}' to column '{req.column}'.",
+    }
+
+
 @router.get("/export")
 def export_reproduce_pipeline(request: Request):
     """
