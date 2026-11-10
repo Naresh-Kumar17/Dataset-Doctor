@@ -148,7 +148,41 @@
 
 ---
 
-## Future Gates Pipeline (Phases 9–21 Specifications)
+## 2026-11-10  Phase 9: Class Imbalance Detection   PASS
+- Automated benchmark runner verified via `python -m doctor.bench imbalance` and `python -m doctor.bench --all`:
+  - 8 of 8 Gate 9 checks PASSED:
+    - [PASS] Planted 90/10 target detected with high severity (ratio 9.0, minority 10%).
+    - [PASS] Planted 99/1 target detected with high severity (ratio 99.0, minority 1%).
+    - [PASS] Planted multiclass target (70/25/5) detected with high severity.
+    - [PASS] Balanced control (50/50) produces 0 issues (stays completely quiet).
+    - [PASS] 0 certain false alarms on clean_control.csv.
+    - [PASS] Surfaces accuracy paradox warning in evidence.
+    - [PASS] Surfaces real-world prevalence prompt for domain confirmation.
+    - [PASS] Detection executes rapidly (0.005s < 2.0s).
+- Full project test suite: 10 unit tests in `tests/issues/test_imbalance.py` passing cleanly.
+- Neo-brutalist interactive imbalance workbench integrated into `/module/imbalance` with stat cards for Severe Imbalance, Moderate Imbalance, Target Analyzed, and Train-Only Resampling Guarantee.
+
+## 2026-11-13  Phase 10: Class Imbalance Advisor & Fixer (Interactive)   PASS
+- Automated benchmark runner verified via `python -m doctor.bench imbalance_advisor` and `python -m doctor.bench --all`:
+  - 9 of 9 Gate 10 checks PASSED:
+    - [PASS] Advisor evaluates 5-fold CV on train partition and recommends evidence-backed strategy (`class_weight` or `random_oversample`).
+    - [PASS] Advisor provides trade-off visibility across recall, precision, and F1.
+    - [PASS] Class weighting preserves 100% of training data rows.
+    - [PASS] Random oversampling balances minority and majority classes on train partition.
+    - [PASS] Gate 10: Test partition row count is strictly preserved (0 test rows resampled/dropped).
+    - [PASS] Gate 10: Test partition class ratio is 100% unchanged.
+    - [PASS] SMOTE safety guard: refuses unencoded non-numeric features with clear error.
+    - [PASS] RemediationPipeline integration: decision persists and reproduce code exports cleanly.
+    - [PASS] User override: successfully applies alternative remediation strategy (`leave`).
+- Full project test suite: 130 tests passing across all suites (`pytest`).
+- Web API endpoints: `POST /decide/imbalance/apply` with session tracking.
+- Interactive decision controls: 1-click remediation actions for Class Weights, Oversample Train Only, SMOTE (Numeric Only), Undersample, and Leave.
+- RemediationPipeline and `reproduce.py` code generator updated with `class_weight`, `random_oversample`, `random_undersample`, and `smote` transformations.
+- Complete regression suite: 100% PASS across all 9 benchmark modules (Gates 2 through 10).
+
+---
+
+## Future Gates Pipeline (Phases 11–21 Specifications)
 
 ### Gate 9: Class Imbalance Detection (Scheduled)
 - Planted targets: 90/10, 99/1, multi-class with tiny minority (5%), and 50/50 balanced control.
