@@ -1222,6 +1222,408 @@
       }
     </script>
 
+  {% elif module.id == 'pipeline' %}
+    <!-- Phase 13: 10-Step Deterministic Pipeline Workbench -->
+    <div class="banner {% if pipeline_data and pipeline_data.is_canonical %}success{% else %}warning{% endif %}" style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <strong>CANONICAL EXECUTION ORDER:</strong>
+          <span style="font-family: monospace; font-size: 13px; margin-left: 8px;">
+            Types ➔ Nulls ➔ Duplicates ➔ Outliers ➔ Imbalance ➔ Leakage
+          </span>
+        </div>
+        <div>
+          {% if pipeline_data and pipeline_data.is_canonical %}
+            <span class="chip pass" style="font-size: 12px;">STRICT ORDER VERIFIED</span>
+          {% else %}
+            <span class="chip fail" style="font-size: 12px;">NON-CANONICAL ORDER</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if pipeline_data and pipeline_data.comparison %}
+      <!-- Before / After Side-by-Side Stat Strip -->
+      <div class="stat-grid" style="margin-bottom: 24px;">
+        <div class="stat-card" style="border-left: 6px solid var(--blue);">
+          <div class="stat-label">RAW SHAPE</div>
+          <div class="stat-val">{{ pipeline_data.comparison.raw_shape[0] }} x {{ pipeline_data.comparison.raw_shape[1] }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Original rows & columns</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--green);">
+          <div class="stat-label">CLEANED SHAPE</div>
+          <div class="stat-val">{{ pipeline_data.comparison.cleaned_shape[0] }} x {{ pipeline_data.comparison.cleaned_shape[1] }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">{{ pipeline_data.comparison.rows_delta }} rows | {{ pipeline_data.comparison.cols_delta }} cols</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--orange);">
+          <div class="stat-label">NULLS ELIMINATED</div>
+          <div class="stat-val">{{ pipeline_data.comparison.nulls_eliminated }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">{{ pipeline_data.comparison.nulls_before }} ➔ {{ pipeline_data.comparison.nulls_after }} remaining</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--pink);">
+          <div class="stat-label">DUPLICATES REMOVED</div>
+          <div class="stat-val">{{ pipeline_data.comparison.duplicates_eliminated }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">{{ pipeline_data.comparison.duplicates_before }} ➔ {{ pipeline_data.comparison.duplicates_after }} remaining</div>
+        </div>
+      </div>
+
+      <!-- Pipeline Steps Audit Trail -->
+      <div class="card" style="margin-bottom: 24px;">
+        <h3 class="card-title">RECORDED REMEDIATION PIPELINE ({{ pipeline_data.steps|length }} STEPS)</h3>
+        <p style="font-size: 13px; color: #555; margin-top: 4px; margin-bottom: 16px;">
+          All learned transformers fit strictly on the training partition and serialize with exact learned parameters.
+        </p>
+
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+            <thead>
+              <tr style="border-bottom: 3px solid #000; background: #fafafa;">
+                <th style="padding: 10px;">#</th>
+                <th style="padding: 10px;">STAGE</th>
+                <th style="padding: 10px;">TARGET COLUMN</th>
+                <th style="padding: 10px;">REMEDIATION APPLIED</th>
+                <th style="padding: 10px;">DECIDED BY</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in pipeline_data.steps %}
+                <tr style="border-bottom: 1px solid #ddd;">
+                  <td style="padding: 10px; font-weight: 700;">{{ loop.index }}</td>
+                  <td style="padding: 10px; font-family: monospace; font-weight: 800; text-transform: uppercase;">{{ s.issue_id }}</td>
+                  <td style="padding: 10px; font-family: monospace;">{{ s.column or "Dataset-level" }}</td>
+                  <td style="padding: 10px; font-weight: 700; color: var(--primary);">{{ s.option_id }}</td>
+                  <td style="padding: 10px;"><span class="badge info">{{ s.decided_by }}</span></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Standalone Code Export -->
+      <div class="card" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <h3 class="card-title" style="margin: 0;">VERIFIED STANDALONE REPRODUCE.PY</h3>
+          <button class="btn secondary sm" onclick="navigator.clipboard.writeText(document.getElementById('reproduce-code-block').innerText); alert('Copied reproduce.py script to clipboard!');">
+            📋 COPY SCRIPT
+          </button>
+        </div>
+        <pre id="reproduce-code-block" style="background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 4px; border: 2px solid #000; overflow-x: auto; font-size: 12px; font-family: monospace; max-height: 280px;">{{ pipeline_data.reproduce_code }}</pre>
+      </div>
+    {% endif %}
+
+  {% elif module.id == 'quality_assessment' %}
+    <!-- Phase 14: Unified Data-to-Model Quality Assessment Workbench -->
+    {% if quality_report %}
+      <div class="stat-grid" style="margin-bottom: 24px;">
+        <div class="stat-card" style="border-left: 6px solid {% if quality_report.overall_score >= 80 %}var(--green){% elif quality_report.overall_score >= 60 %}var(--orange){% else %}var(--pink){% endif %};">
+          <div class="stat-label">DATA QUALITY SCORE</div>
+          <div class="stat-val" style="font-size: 42px; font-weight: 900;">{{ quality_report.overall_score }}<span style="font-size: 20px; color: #666;">/100</span></div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Composite index across all 6 diagnostic domains</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid {% if quality_report.readiness == 'TRAINING_READY' %}var(--green){% elif quality_report.readiness == 'NEEDS_ATTENTION' %}var(--orange){% else %}var(--pink){% endif %};">
+          <div class="stat-label">TRAINING READINESS</div>
+          <div class="stat-val" style="font-size: 22px; font-weight: 900; margin-top: 8px;">
+            {% if quality_report.readiness == 'TRAINING_READY' %}
+              <span class="chip pass">READY FOR TRAINING</span>
+            {% elif quality_report.readiness == 'NEEDS_ATTENTION' %}
+              <span class="chip built">NEEDS ATTENTION</span>
+            {% else %}
+              <span class="chip fail">BLOCKED (CRITICAL)</span>
+            {% endif %}
+          </div>
+          <div style="font-size: 12px; color: #555; margin-top: 8px;">Gate status before model experimentation</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--blue);">
+          <div class="stat-label">TOTAL ISSUES DETECTED</div>
+          <div class="stat-val">{{ quality_report.total_issues_found }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">{{ quality_report.total_issues_resolved }} resolved via decisions</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--ink);">
+          <div class="stat-label">CRITICAL BLOCKERS</div>
+          <div class="stat-val" style="color: {% if quality_report.critical_blockers %}#b00020{% else %}#007a3d{% endif %};">{{ quality_report.critical_blockers|length }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Direct target leaks & target missingness</div>
+        </div>
+      </div>
+
+      {% if quality_report.critical_blockers %}
+        <div class="banner danger" style="margin-bottom: 24px;">
+          <div style="font-weight: 800; font-size: 15px; margin-bottom: 6px;">⛔ MODEL TRAINING BLOCKED: CRITICAL INTEGRITY HAZARDS</div>
+          <ul style="margin: 4px 0 12px 20px; font-size: 13px;">
+            {% for b in quality_report.critical_blockers %}
+              <li><strong>{{ b }}</strong></li>
+            {% endfor %}
+          </ul>
+          <div style="font-size: 12px; color: #444;">
+            To proceed, remediate these issues using the corresponding module advisors or provide an explicit user override.
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- 6-Domain Risk Matrix Table -->
+      <div class="card" style="margin-bottom: 24px;">
+        <h3 class="card-title">CROSS-MODULE DIAGNOSTIC RISK MATRIX</h3>
+        <p style="font-size: 13px; color: #555; margin-top: 4px; margin-bottom: 16px;">
+          Comprehensive data health status across all six data-to-model vulnerability surfaces.
+        </p>
+
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+            <thead>
+              <tr style="border-bottom: 3px solid #000; background: #fafafa;">
+                <th style="padding: 10px;">DIAGNOSTIC DOMAIN</th>
+                <th style="padding: 10px;">STATUS</th>
+                <th style="padding: 10px;">TOTAL ISSUES</th>
+                <th style="padding: 10px;">UNRESOLVED</th>
+                <th style="padding: 10px;">KEY FINDINGS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dom_id, ds in quality_report.domain_summaries.items() %}
+                <tr style="border-bottom: 1px solid #ddd;">
+                  <td style="padding: 10px; font-weight: 800;">{{ ds.domain_name }}</td>
+                  <td style="padding: 10px;">
+                    {% if ds.status == 'CLEAN' %}
+                      <span class="badge low">CLEAN</span>
+                    {% elif ds.status == 'WARNING' %}
+                      <span class="badge medium">WARNING</span>
+                    {% else %}
+                      <span class="badge high">CRITICAL</span>
+                    {% endif %}
+                  </td>
+                  <td style="padding: 10px; font-family: monospace;">{{ ds.total_issues }}</td>
+                  <td style="padding: 10px; font-family: monospace; font-weight: 700;">{{ ds.unresolved_issues }}</td>
+                  <td style="padding: 10px; font-size: 12px; color: #444;">
+                    {% if ds.findings %}
+                      {{ ds.findings|join(" • ") }}
+                    {% else %}
+                      <span style="color: #007a3d;">No anomalies detected.</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
+  {% elif module.id == 'multi_model' %}
+    <!-- Phase 15: Multi-Model Experimentation & Comparison Workbench -->
+    {% if experiment_result %}
+      {% if experiment_result.has_accuracy_illusion %}
+        <div class="banner warning" style="margin-bottom: 24px;">
+          <div style="font-weight: 800; font-size: 15px; margin-bottom: 4px;">⚠️ ACCURACY ILLUSION DETECTED</div>
+          <div>
+            High nominal test accuracy (&gt;85%) is masking poor minority class recall (&lt;50%). In imbalanced datasets, raw accuracy reflects majority prevalence rather than true predictive utility. Rely on Balanced Accuracy, F1, and PR-AUC.
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="stat-grid" style="margin-bottom: 24px;">
+        <div class="stat-card" style="border-left: 6px solid var(--green);">
+          <div class="stat-label">TOP COMPOSITE MODEL</div>
+          <div class="stat-val" style="font-size: 20px; font-weight: 900;">{{ experiment_result.best_overall_model }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Ranked by 60% F1 + 40% PR-AUC</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--blue);">
+          <div class="stat-label">BEST F1 SCORE</div>
+          <div class="stat-val" style="font-size: 20px; font-weight: 900;">{{ experiment_result.best_model_f1 }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Optimal precision/recall balance</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--orange);">
+          <div class="stat-label">BEST PR-AUC</div>
+          <div class="stat-val" style="font-size: 20px; font-weight: 900;">{{ experiment_result.best_model_pr_auc }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Area under precision-recall curve</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--ink);">
+          <div class="stat-label">ARCHITECTURES TESTED</div>
+          <div class="stat-val">{{ experiment_result.results|length }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Linear, Tree, Forest, Boosting</div>
+        </div>
+      </div>
+
+      <!-- Comparison Matrix Table -->
+      <div class="card" style="margin-bottom: 24px;">
+        <h3 class="card-title">MULTI-MODEL EVALUATION MATRIX (LOCKED TEST SET)</h3>
+        <p style="font-size: 13px; color: #555; margin-top: 4px; margin-bottom: 16px;">
+          All models fit strictly on the train partition and evaluated on the untouched test partition.
+        </p>
+
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+            <thead>
+              <tr style="border-bottom: 3px solid #000; background: #fafafa;">
+                <th style="padding: 10px;">MODEL FAMILY</th>
+                <th style="padding: 10px;">ACCURACY</th>
+                <th style="padding: 10px;">BALANCED ACC</th>
+                <th style="padding: 10px;">PRECISION</th>
+                <th style="padding: 10px;">RECALL</th>
+                <th style="padding: 10px;">F1 SCORE</th>
+                <th style="padding: 10px;">PR-AUC</th>
+                <th style="padding: 10px;">OVERFITTING</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in experiment_result.results %}
+                <tr style="border-bottom: 1px solid #ddd; {% if r.model_name == experiment_result.best_overall_model %}background: #f0fff4; font-weight: 700;{% endif %}">
+                  <td style="padding: 10px;">
+                    {{ r.model_name }}
+                    {% if r.model_name == experiment_result.best_overall_model %}
+                      <span class="chip pass" style="font-size: 10px; margin-left: 6px;">TOP PICK</span>
+                    {% endif %}
+                  </td>
+                  <td style="padding: 10px; font-family: monospace;">{{ "%.3f"|format(r.test_accuracy) }}</td>
+                  <td style="padding: 10px; font-family: monospace;">{{ "%.3f"|format(r.test_balanced_accuracy) }}</td>
+                  <td style="padding: 10px; font-family: monospace;">{{ "%.3f"|format(r.test_precision) }}</td>
+                  <td style="padding: 10px; font-family: monospace;">{{ "%.3f"|format(r.test_recall) }}</td>
+                  <td style="padding: 10px; font-family: monospace; font-weight: 800; color: var(--primary);">{{ "%.3f"|format(r.test_f1) }}</td>
+                  <td style="padding: 10px; font-family: monospace;">{{ "%.3f"|format(r.test_pr_auc or 0.0) }}</td>
+                  <td style="padding: 10px;">
+                    {% if r.is_overfitting %}
+                      <span class="badge high">OVERFITTING GAP</span>
+                    {% else %}
+                      <span class="badge low">NORMAL</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
+  {% elif module.id == 'error_analysis' %}
+    <!-- Phase 16: Model Error Analysis & Diagnostics Workbench -->
+    {% if error_profile %}
+      <div class="stat-grid" style="margin-bottom: 24px;">
+        <div class="stat-card" style="border-left: 6px solid var(--green);">
+          <div class="stat-label">TRUE POSITIVES (TP)</div>
+          <div class="stat-val" style="color: #007a3d;">{{ error_profile.tp }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Correctly identified positive class</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--pink);">
+          <div class="stat-label">FALSE POSITIVES (FP)</div>
+          <div class="stat-val" style="color: #b00020;">{{ error_profile.fp }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">FPR: {{ "%.2f"|format(error_profile.false_positive_rate * 100) }}%</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--blue);">
+          <div class="stat-label">TRUE NEGATIVES (TN)</div>
+          <div class="stat-val">{{ error_profile.tn }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Correctly identified negative class</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--orange);">
+          <div class="stat-label">FALSE NEGATIVES (FN)</div>
+          <div class="stat-val" style="color: #c46800;">{{ error_profile.fn }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">FNR: {{ "%.2f"|format(error_profile.false_negative_rate * 100) }}%</div>
+        </div>
+      </div>
+
+      <!-- Confidence Separation Banner -->
+      <div class="banner info" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <strong>CONFIDENCE CALIBRATION SEPARATION:</strong>
+            Mean Correct Confidence: <strong>{{ "%.2f"|format(error_profile.mean_correct_confidence * 100) }}%</strong> vs
+            Mean Error Confidence: <strong>{{ "%.2f"|format(error_profile.mean_error_confidence * 100) }}%</strong>
+          </div>
+          <div style="font-size: 12px; font-family: monospace;">
+            Total Error Rate: {{ "%.2f"|format(error_profile.overall_error_rate * 100) }}%
+          </div>
+        </div>
+      </div>
+
+      <!-- Subgroup Slicing Table -->
+      {% if error_profile.slice_analysis %}
+        <div class="card" style="margin-bottom: 24px;">
+          <h3 class="card-title">SUBGROUP SLICING & BLIND SPOT ANALYSIS</h3>
+          <p style="font-size: 13px; color: #555; margin-top: 4px; margin-bottom: 16px;">
+            Identifies slices where error rate exceeds 1.5x the overall model error rate (disproportionate vulnerability).
+          </p>
+
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+              <thead>
+                <tr style="border-bottom: 3px solid #000; background: #fafafa;">
+                  <th style="padding: 10px;">FEATURE</th>
+                  <th style="padding: 10px;">SUBGROUP VALUE</th>
+                  <th style="padding: 10px;">SAMPLES</th>
+                  <th style="padding: 10px;">ERRORS</th>
+                  <th style="padding: 10px;">SLICE ERROR RATE</th>
+                  <th style="padding: 10px;">BLIND SPOT STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in error_profile.slice_analysis %}
+                  <tr style="border-bottom: 1px solid #ddd; {% if s.is_blind_spot %}background: #fff5f5;{% endif %}">
+                    <td style="padding: 10px; font-weight: 700; font-family: monospace;">{{ s.feature }}</td>
+                    <td style="padding: 10px; font-weight: 800;">{{ s.slice_value }}</td>
+                    <td style="padding: 10px; font-family: monospace;">{{ s.sample_count }}</td>
+                    <td style="padding: 10px; font-family: monospace;">{{ s.error_count }}</td>
+                    <td style="padding: 10px; font-family: monospace; font-weight: 800; color: {% if s.is_blind_spot %}#b00020{% else %}inherit{% endif %};">
+                      {{ "%.2f"|format(s.error_rate * 100) }}%
+                    </td>
+                    <td style="padding: 10px;">
+                      {% if s.is_blind_spot %}
+                        <span class="badge high">🚨 BLIND SPOT (&gt;1.5x)</span>
+                      {% else %}
+                        <span class="badge low">NORMAL</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Top High-Confidence Errors -->
+      {% if error_profile.top_false_positives or error_profile.top_false_negatives %}
+        <div class="card" style="margin-bottom: 24px;">
+          <h3 class="card-title">TOP HIGH-CONFIDENCE PREDICTION ERRORS</h3>
+          <p style="font-size: 13px; color: #555; margin-top: 4px; margin-bottom: 16px;">
+            Inspect worst-case model blunders with full feature contexts to guide targeted feature engineering or data collection.
+          </p>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+            <div style="border: 2px solid #000; padding: 14px; background: #fff5f5;">
+              <h4 style="margin: 0 0 10px; color: #b00020;">TOP FALSE POSITIVES (Actual 0, Predicted 1)</h4>
+              {% for fp in error_profile.top_false_positives %}
+                <div style="padding: 8px; border-bottom: 1px dashed #ccc; font-size: 12px; font-family: monospace;">
+                  <div><strong>Predicted Prob:</strong> {{ fp._predicted_prob }}</div>
+                  <div><strong>Context:</strong> {% for k, v in fp.items() %}{% if not k.startswith('_') and loop.index <= 4 %}{{ k }}={{ v }} {% endif %}{% endfor %}</div>
+                </div>
+              {% endfor %}
+            </div>
+
+            <div style="border: 2px solid #000; padding: 14px; background: #fff9f0;">
+              <h4 style="margin: 0 0 10px; color: #c46800;">TOP FALSE NEGATIVES (Actual 1, Predicted 0)</h4>
+              {% for fn in error_profile.top_false_negatives %}
+                <div style="padding: 8px; border-bottom: 1px dashed #ccc; font-size: 12px; font-family: monospace;">
+                  <div><strong>Predicted Prob:</strong> {{ fn._predicted_prob }}</div>
+                  <div><strong>Context:</strong> {% for k, v in fn.items() %}{% if not k.startswith('_') and loop.index <= 4 %}{{ k }}={{ v }} {% endif %}{% endfor %}</div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    {% endif %}
+
   {% else %}
     <!-- Module Not Built Placeholder for future phases -->
     <div class="card">

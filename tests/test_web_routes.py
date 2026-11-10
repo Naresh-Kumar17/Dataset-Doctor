@@ -123,7 +123,7 @@ def test_bench_page_lists_all_modules(auth_client):
     assert "AUTOMATED TEST BENCH" in response.text
     assert "Null / Missing Values" in response.text
     assert "Class Imbalance" in response.text
-    assert "NOT BUILT" in response.text
+    assert ("GATE PASSED" in response.text or "PASSED" in response.text)
     assert "GATE LOG HISTORY" in response.text
 
 
@@ -321,3 +321,34 @@ def test_leakage_apply_route(auth_client):
     assert data["column"] == "target_copy"
     assert data["applied_option"] == "drop_column"
     assert data["cols_delta"] == -1
+
+
+def test_pipeline_module_page(auth_client):
+    response = auth_client.get("/module/pipeline")
+    assert response.status_code == 200
+    assert "Pipeline" in response.text
+    assert "CANONICAL EXECUTION ORDER" in response.text
+    assert "Types ➔ Nulls ➔ Duplicates ➔ Outliers ➔ Imbalance ➔ Leakage" in response.text
+
+
+def test_quality_assessment_module_page(auth_client):
+    response = auth_client.get("/module/quality_assessment")
+    assert response.status_code == 200
+    assert "Quality Assessment" in response.text
+    assert "DATA QUALITY SCORE" in response.text
+    assert "CROSS-MODULE DIAGNOSTIC RISK MATRIX" in response.text
+
+
+def test_multi_model_module_page(auth_client):
+    response = auth_client.get("/module/multi_model")
+    assert response.status_code == 200
+    assert "Multi-Model" in response.text
+    assert "MULTI-MODEL EVALUATION MATRIX" in response.text
+
+
+def test_error_analysis_module_page(auth_client):
+    response = auth_client.get("/module/error_analysis")
+    assert response.status_code == 200
+    assert "Error Analysis" in response.text
+    assert "TRUE POSITIVES" in response.text
+    assert "FALSE POSITIVES" in response.text

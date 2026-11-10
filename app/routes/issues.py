@@ -23,6 +23,7 @@ SAMPLE_TYPES = Path(__file__).resolve().parent.parent.parent / "data" / "planted
 SAMPLE_OUTLIERS = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "outliers.csv"
 SAMPLE_IMBALANCE = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "imbalance.csv"
 SAMPLE_LEAKAGE = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "leakage.csv"
+SAMPLE_PIPELINE = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "pipeline.csv"
 
 
 @router.get("/module/{module_id}", response_class=HTMLResponse)
@@ -127,6 +128,45 @@ def get_module_page(module_id: str, request: Request):
                 session.metadata = {"filename": "leakage.csv (Sample Preview)"}
         except Exception:
             df = None
+    elif module_id == "pipeline" and SAMPLE_PIPELINE.exists():
+        try:
+            df, _ = load_csv(str(SAMPLE_PIPELINE), filename="pipeline.csv (Sample Preview)")
+            active_filename = active_filename or "pipeline.csv (Sample Preview)"
+            target_col = "target"
+            task_type = "classification"
+            if session:
+                session.df = df
+                session.target_column = target_col
+                session.task_type = task_type
+                session.metadata = {"filename": "pipeline.csv (Sample Preview)"}
+        except Exception:
+            df = None
+    elif module_id == "quality_assessment" and SAMPLE_LEAKAGE.exists():
+        try:
+            df, _ = load_csv(str(SAMPLE_LEAKAGE), filename="leakage.csv (Sample Preview)")
+            active_filename = active_filename or "leakage.csv (Sample Preview)"
+            target_col = "target"
+            task_type = "classification"
+            if session:
+                session.df = df
+                session.target_column = target_col
+                session.task_type = task_type
+                session.metadata = {"filename": "leakage.csv (Sample Preview)"}
+        except Exception:
+            df = None
+    elif module_id in ("multi_model", "error_analysis") and SAMPLE_IMBALANCE.exists():
+        try:
+            df, _ = load_csv(str(SAMPLE_IMBALANCE), filename="imbalance.csv (Sample Preview)")
+            active_filename = active_filename or "imbalance.csv (Sample Preview)"
+            target_col = "target_90_10"
+            task_type = "classification"
+            if session:
+                session.df = df
+                session.target_column = target_col
+                session.task_type = task_type
+                session.metadata = {"filename": "imbalance.csv (Sample Preview)"}
+        except Exception:
+            df = None
     elif SAMPLE_ACCIDENT.exists():
         # Fallback to accident dataset for preview
         try:
@@ -144,6 +184,10 @@ def get_module_page(module_id: str, request: Request):
     split_info = None
     eval_result = None
     split_demo = None
+    pipeline_data = None
+    quality_report = None
+    experiment_result = None
+    error_profile = None
 
     if module_id in ("nulls", "nulls_advisor") and df is not None:
         from doctor.issues.nulls.advise import NullAdvisor
@@ -330,6 +374,87 @@ def get_module_page(module_id: str, request: Request):
                 eval_result = None
                 split_demo = None
 
+    elif module_id == "pipeline" and df is not None:
+        try:
+            from doctor.pipeline import RemediationPipeline, CANONICAL_ORDER
+            from doctor.base import Decision
+            p = RemediationPipeline()
+            if session and hasattr(session, "pipeline") and session.pipeline and session.pipeline.steps:
+                p = session.pipeline
+            else:
+                if "price" in df.columns:
+                    p.record_decision(Decision(issue_id="types", column="price", option_id="convert_to_numeric", params={}, decided_by="advisor"), train_df=df)
+                if "notes" in df.columns:
+                    p.record_decision(Decision(issue_id="nulls", column="notes", option_id="drop_column", params={}, decided_by="advisor"), train_df=df)
+                p.record_decision(Decision(issue_id="duplicates", column=None, option_id="keep_first", params={}, decided_by="advisor"), train_df=df)
+                if "price" in df.columns:
+                    p.record_decision(Decision(issue_id="outliers", column="price", option_id="clip_percentile", params={"lower": 100, "upper": 2000}, decided_by="advisor"), train_df=df)
+                if "target_copy" in df.columns:
+                    p.record_decision(Decision(issue_id="leakage", column="target_copy", option_id="drop_column", params={}, decided_by="advisor"), train_df=df)
+
+            cleaned_preview = p.transform(df)
+            cmp = p.compare_before_after(df, cleaned_preview, target_column=target_col)
+            reproduce_code = p.export_reproduce_code(active_filename or "data.csv")
+            ordering_val = p.validate_ordering()
+
+            pipeline_data = {
+                "steps": [
+                    {
+                        "step_id": s.step_id,
+                        "issue_id": s.issue_id,
+                        "column": s.column,
+                        "option_id": s.option_id,
+                        "decided_by": s.decided_by,
+                    }
+                    for s in p.steps
+                ],
+                "canonical_order": CANONICAL_ORDER,
+                "is_canonical": p.is_canonical_order(),
+                "ordering_validation": ordering_val,
+                "comparison": cmp,
+                "reproduce_code": reproduce_code,
+            }
+        except Exception:
+            pipeline_data = None
+
+    elif module_id == "quality_assessment" and df is not None:
+        try:
+            from doctor.quality import DataQualityAssessor
+            assessor = DataQualityAssessor()
+            decisions = session.decisions if (session and hasattr(session, "decisions")) else None
+            quality_report = assessor.assess(df, target_column=target_col, task_type=task_type, decisions=decisions)
+        except Exception:
+            quality_report = None
+
+    elif module_id == "multi_model" and df is not None:
+        try:
+            from doctor.experiment import MultiModelExperiment
+            experimenter = MultiModelExperiment(random_seed=42)
+            n_train = int(len(df) * 0.8)
+            tr = df.iloc[:n_train].copy()
+            te = df.iloc[n_train:].copy()
+            experiment_result = experimenter.run_experiment(tr, te, target_column=target_col)
+        except Exception:
+            experiment_result = None
+
+    elif module_id == "error_analysis" and df is not None:
+        try:
+            from doctor.diagnostics import ModelErrorAnalyzer
+            from sklearn.ensemble import RandomForestClassifier
+            import pandas as pd
+            n_train = int(len(df) * 0.8)
+            tr = df.iloc[:n_train].copy()
+            te = df.iloc[n_train:].copy()
+            target = target_col or df.columns[-1]
+            X_tr = pd.get_dummies(tr.drop(columns=[target]), drop_first=True)
+            y_tr = tr[target].values
+            clf = RandomForestClassifier(n_estimators=30, max_depth=4, random_state=42)
+            clf.fit(X_tr.values, y_tr)
+            analyzer = ModelErrorAnalyzer(top_n_errors=5)
+            error_profile = analyzer.analyze(clf, te, target_column=target, feature_columns=list(X_tr.columns))
+        except Exception:
+            error_profile = None
+
     def badge_formatter(evidence: dict) -> str:
         kind = evidence.get("kind", "")
         subtype = evidence.get("subtype", "")
@@ -375,6 +500,10 @@ def get_module_page(module_id: str, request: Request):
             "split_info": split_info,
             "eval_result": eval_result,
             "split_demo": split_demo,
+            "pipeline_data": pipeline_data,
+            "quality_report": quality_report,
+            "experiment_result": experiment_result,
+            "error_profile": error_profile,
             "target_col": target_col,
             "has_data": df is not None,
             "format_badge": badge_formatter,
