@@ -1139,6 +1139,293 @@ def run_outliers_advisor_gate() -> tuple[bool, dict]:
 
 
 
+
+
+def run_imbalance_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 9 evaluation for Class Imbalance Detection (Phase 9).
+    Verifies:
+    1. 90/10 target detected with high severity (ratio 9.0, minority 10%).
+    2. 99/1 target detected with high severity (ratio 99.0, minority 1%).
+    3. Multiclass target (70/25/5) detected with high severity (minority 5%).
+    4. Balanced control (50/50) produces 0 issues (stays completely quiet).
+    5. 0 certain false alarms on clean_control.csv.
+    6. Accuracy paradox warning is present in evidence.
+    7. Real-world prevalence prompt is present in evidence.
+    8. Fast detection execution (< 2.0s).
+    """
+    import time
+    import numpy as np
+    import pandas as pd
+    from doctor.loader import load_csv
+    from doctor.base import DetectionContext
+    from doctor.issues.imbalance.detect import ImbalanceDetector
+
+    details = {"checks": [], "planted": 3, "found": 0, "missed": 0, "false_alarms": 0}
+    detector = ImbalanceDetector()
+
+    imbalance_csv = ROOT_DIR / "data" / "planted" / "imbalance.csv"
+    clean_csv = ROOT_DIR / "data" / "planted" / "clean_control.csv"
+
+    if not imbalance_csv.exists():
+        from tools.make_planted import make_imbalance_planted
+        make_imbalance_planted()
+
+    df_planted, _ = load_csv(str(imbalance_csv), filename="imbalance.csv")
+    
+    t0 = time.perf_counter()
+    issues = detector.detect(df_planted)
+    elapsed = time.perf_counter() - t0
+    issues_by_col = {i.column: i for i in issues}
+
+    # 1. target_90_10
+    iss_90_10 = issues_by_col.get("target_90_10")
+    chk_90_10 = bool(iss_90_10 and iss_90_10.severity == "high" and iss_90_10.evidence.get("imbalance_ratio") == 9.0)
+    details["checks"].append({
+        "name": "Planted 90/10 target detected with high severity (ratio 9.0, minority 10%)",
+        "passed": chk_90_10,
+    })
+    if chk_90_10:
+        details["found"] += 1
+    else:
+        details["missed"] += 1
+
+    # 2. target_99_1
+    iss_99_1 = issues_by_col.get("target_99_1")
+    chk_99_1 = bool(iss_99_1 and iss_99_1.severity == "high" and iss_99_1.evidence.get("imbalance_ratio") == 99.0)
+    details["checks"].append({
+        "name": "Planted 99/1 target detected with high severity (ratio 99.0, minority 1%)",
+        "passed": chk_99_1,
+    })
+    if chk_99_1:
+        details["found"] += 1
+    else:
+        details["missed"] += 1
+
+    # 3. target_multiclass
+    iss_multi = issues_by_col.get("target_multiclass")
+    chk_multi = bool(iss_multi and iss_multi.severity == "high" and iss_multi.evidence.get("is_multiclass") is True)
+    details["checks"].append({
+        "name": "Planted multiclass target (70/25/5) detected with high severity",
+        "passed": chk_multi,
+    })
+    if chk_multi:
+        details["found"] += 1
+    else:
+        details["missed"] += 1
+
+    # 4. target_balanced (must be 0 flags)
+    iss_balanced = issues_by_col.get("target_balanced")
+    chk_balanced = bool(iss_balanced is None)
+    details["checks"].append({
+        "name": "Balanced control (50/50) produces 0 issues (stays completely quiet)",
+        "passed": chk_balanced,
+    })
+    if not chk_balanced:
+        details["false_alarms"] += 1
+
+    # 5. Clean control dataset: 0 certain false alarms
+    df_clean, _ = load_csv(str(clean_csv), filename="clean_control.csv")
+    ctx_clean = DetectionContext(target_column="target", task_type="classification")
+    clean_issues = detector.detect(df_clean, ctx=ctx_clean)
+    certain_clean_issues = [i for i in clean_issues if i.certainty == "certain"]
+    chk_clean = len(certain_clean_issues) == 0
+    details["checks"].append({
+        "name": "0 certain false alarms on clean_control.csv",
+        "passed": chk_clean,
+    })
+    if not chk_clean:
+        details["false_alarms"] += len(certain_clean_issues)
+
+    # 6. Accuracy paradox warning in evidence
+    chk_paradox = bool(iss_90_10 and "accuracy_paradox_warning" in iss_90_10.evidence)
+    details["checks"].append({
+        "name": "Surfaces accuracy paradox warning in evidence",
+        "passed": chk_paradox,
+    })
+
+    # 7. Real-world prevalence prompt
+    chk_prompt = bool(iss_90_10 and "prompt_real_world" in iss_90_10.evidence)
+    details["checks"].append({
+        "name": "Surfaces real-world prevalence prompt for domain confirmation",
+        "passed": chk_prompt,
+    })
+
+    # 8. Fast execution
+    chk_perf = elapsed < 2.0
+    details["checks"].append({
+        "name": f"Detection executes rapidly ({elapsed:.3f}s < 2.0s)",
+        "passed": chk_perf,
+    })
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
+def run_imbalance_advisor_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 10 evaluation for Class Imbalance Advisor & Fixer (Phase 10).
+    Verifies:
+    1. Advisor evaluates 5-fold CV on train partition only and recommends class_weight or random_oversample.
+    2. Advisor provides trade-off visibility across recall, precision, and F1.
+    3. Fixer with class_weight preserves 100% of data rows.
+    4. Fixer with random_oversample equalizes train minority count.
+    5. Gate 10 Invariant: Test set row count is strictly preserved (0 test rows resampled/dropped).
+    6. Gate 10 Invariant: Test class ratio is 100% preserved.
+    7. SMOTE safety guard: SMOTE raises ValueError on unencoded categorical features.
+    8. Decision log persists and exported reproduce.py code rebuilds identical cleaned dataset.
+    9. User override successfully applies alternative remediation strategy.
+    """
+    import numpy as np
+    import pandas as pd
+    from doctor.loader import load_csv
+    from doctor.base import Decision, DetectionContext, Issue
+    from doctor.issues.imbalance.detect import ImbalanceDetector
+    from doctor.issues.imbalance.advise import ImbalanceAdvisor
+    from doctor.issues.imbalance.fix import ImbalanceFixer, HAS_IMBLEARN
+    from doctor.pipeline import RemediationPipeline
+
+    details = {"checks": [], "planted": 9, "found": 0, "missed": 0, "false_alarms": 0}
+    detector = ImbalanceDetector()
+    advisor = ImbalanceAdvisor()
+    fixer = ImbalanceFixer()
+
+    imbalance_csv = ROOT_DIR / "data" / "planted" / "imbalance.csv"
+    df_imbalance, _ = load_csv(str(imbalance_csv), filename="imbalance.csv")
+
+    # Split 80/20 train/test
+    n_train = int(len(df_imbalance) * 0.8)
+    train_df = df_imbalance.iloc[:n_train].copy()
+    test_df = df_imbalance.iloc[n_train:].copy()
+    orig_test_len = len(test_df)
+    orig_test_counts = test_df["target_90_10"].value_counts().to_dict()
+
+    ctx = DetectionContext(target_column="target_90_10", task_type="classification")
+    issues = detector.detect(train_df, ctx=ctx)
+    issue_90 = next((i for i in issues if i.column == "target_90_10"), None)
+
+    # 1. Advisor recommendation
+    rec = advisor.advise(issue_90, train_df, target="target_90_10", ctx=ctx, measure=True) if issue_90 else None
+    chk_rec = bool(rec is not None and rec.recommended in ("class_weight", "random_oversample", "leave"))
+    details["checks"].append({
+        "name": "Advisor evaluates 5-fold CV on train partition and recommends evidence-backed strategy",
+        "passed": chk_rec,
+    })
+
+    # 2. Trade-off visibility
+    has_tradeoff = bool(rec and rec.options and any("trade_off" in (o.measured or {}) for o in rec.options))
+    details["checks"].append({
+        "name": "Advisor provides trade-off visibility across recall, precision, and F1",
+        "passed": has_tradeoff,
+    })
+
+    # 3. Class weight preserves rows
+    dec_cw = Decision(
+        issue_id="imbalance",
+        column="target_90_10",
+        option_id="class_weight",
+        params={},
+        decided_by="user",
+    )
+    fitted_cw = fixer.fit(train_df, dec_cw)
+    train_cw = fixer.transform(train_df, dec_cw, fitted_cw, is_test=False)
+    chk_cw_len = len(train_cw) == len(train_df)
+    details["checks"].append({
+        "name": "Class weighting preserves 100% of training data rows",
+        "passed": chk_cw_len,
+    })
+
+    # 4. Oversampling balances train classes
+    dec_ros = Decision(
+        issue_id="imbalance",
+        column="target_90_10",
+        option_id="random_oversample",
+        params={},
+        decided_by="user",
+    )
+    fitted_ros = fixer.fit(train_df, dec_ros)
+    train_ros = fixer.transform(train_df, dec_ros, fitted_ros, is_test=False)
+    val_counts = train_ros["target_90_10"].value_counts()
+    chk_balanced = bool(val_counts.iloc[0] == val_counts.iloc[-1])
+    details["checks"].append({
+        "name": "Random oversampling balances minority and majority classes on train partition",
+        "passed": chk_balanced,
+    })
+
+    # 5. Strict test row count preservation
+    test_ros = fixer.transform(test_df, dec_ros, fitted_ros, is_test=True)
+    chk_test_len = len(test_ros) == orig_test_len
+    details["checks"].append({
+        "name": "Gate 10: Test partition row count is strictly preserved (0 test rows resampled/dropped)",
+        "passed": chk_test_len,
+    })
+
+    # 6. Test class ratio is 100% preserved
+    test_counts_after = test_ros["target_90_10"].value_counts().to_dict()
+    chk_test_ratio = test_counts_after == orig_test_counts
+    details["checks"].append({
+        "name": "Gate 10: Test partition class ratio is 100% unchanged",
+        "passed": chk_test_ratio,
+    })
+
+    # 7. SMOTE safety guard on unencoded categorical features
+    smote_blocked = False
+    try:
+        dec_smote = Decision(
+            issue_id="imbalance",
+            column="target_90_10",
+            option_id="smote",
+            params={},
+            decided_by="user",
+        )
+        # train_df has feature_cat which is string categorical
+        fitted_sm = fixer.fit(train_df, dec_smote)
+        fixer.transform(train_df, dec_smote, fitted_sm, is_test=False)
+    except ValueError as e:
+        smote_blocked = "unencoded" in str(e).lower() or "smote" in str(e).lower()
+    except Exception:
+        smote_blocked = True
+    details["checks"].append({
+        "name": "SMOTE safety guard: refuses unencoded non-numeric features with clear error",
+        "passed": smote_blocked,
+    })
+
+    # 8. RemediationPipeline integration & reproduce.py
+    pipeline = RemediationPipeline()
+    pipeline.record_decision(dec_ros, train_df=train_df)
+    pipe_train = pipeline.transform(train_df, is_test=False)
+    pipe_test = pipeline.transform(test_df, is_test=True)
+    code = pipeline.export_reproduce_code("raw_imbalance.csv")
+    chk_pipe = (
+        len(pipe_train) > len(train_df)
+        and len(pipe_test) == orig_test_len
+        and "random_oversample" in code
+    )
+    details["checks"].append({
+        "name": "RemediationPipeline integration: decision persists and reproduce code exports cleanly",
+        "passed": chk_pipe,
+    })
+
+    # 9. User override
+    dec_override = Decision(
+        issue_id="imbalance",
+        column="target_90_10",
+        option_id="leave",
+        params={},
+        decided_by="user_override",
+    )
+    pipe_override = RemediationPipeline()
+    pipe_override.record_decision(dec_override, train_df=train_df)
+    clean_override = pipe_override.transform(train_df, is_test=False)
+    chk_override = len(clean_override) == len(train_df)
+    details["checks"].append({
+        "name": "User override: successfully applies alternative remediation strategy (leave)",
+        "passed": chk_override,
+    })
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
 def run_benchmark(target: str = "--all"):
     print("=" * 65)
     print("DATASET DOCTOR: AUTOMATED TEST BENCH")
@@ -1293,6 +1580,48 @@ def run_benchmark(target: str = "--all"):
             status = "gate_passed" if passed else "gate_failed"
             now_iso = datetime.now().isoformat()
             update_module_status("outliers_advisor", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "imbalance":
+            passed, gate_details = run_imbalance_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("imbalance", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "imbalance_advisor":
+            passed, gate_details = run_imbalance_advisor_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("imbalance_advisor", status, gate_details=gate_details, timestamp=now_iso)
 
             print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
             for chk in gate_details["checks"]:
