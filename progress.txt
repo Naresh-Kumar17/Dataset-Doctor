@@ -97,3 +97,43 @@
 - [x] Integration test suite: Web routes and decision apply API tests in tests/test_web_routes.py and tests/test_decide_routes.py.
 - [x] Automated benchmark: Gate 12 runner passing 7 of 7 checks.
 - [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 11 completed modules (Gates 2 through 12).
+
+
+## Phase 13: 10-Step Deterministic Pipeline & Causal Ordering (Gate PASS)
+- [x] Defined strict canonical execution order across all 6 diagnostic domains (types -> nulls -> duplicates -> outliers -> imbalance -> leakage).
+- [x] Implemented causal ordering validator (detects inverted steps like outliers before types) and automatic reordering method.
+- [x] Cumulative sequential fitting: downstream transformers fit on the cumulative output of all preceding transformers.
+- [x] Side-by-side Before/After comparison report generator (tracks raw vs clean shape, nulls eliminated, duplicates removed, and dropped columns).
+- [x] Verified standalone reproduce.py code exporter with learned parameters and canonical ordering enforcement.
+- [x] Unit test suite: tests/test_pipeline_ordering.py covering canonical ordering rules, validation, inversion detection, and before/after comparisons.
+- [x] Automated benchmark: Gate 13 runner passing 8 of 8 checks.
+
+## Phase 14: Unified Data-to-Model Quality Assessment (Gate PASS)
+- [x] Cross-module diagnostic risk matrix aggregating findings across all 6 diagnostic domains (nulls, duplicates, types, outliers, imbalance, leakage).
+- [x] Overall Data Quality Score calculated on a 0-100 scale with penalty weighting.
+- [x] Training readiness evaluation (TRAINING_READY, NEEDS_ATTENTION, BLOCKED_CRITICAL).
+- [x] Strict training blocker enforcement via can_train_model(allow_override=False).
+- [x] Explicit user override mechanism can_train_model(allow_override=True) permitting proceed with logged acknowledgement.
+- [x] Remediation resolution verification: applying decisions clears blockers and elevates quality score.
+- [x] Unit test suite: tests/test_quality_assessment.py covering clean control 100/100 score, critical leakage blocker, and remediation updates.
+- [x] Automated benchmark: Gate 14 runner passing 8 of 8 checks.
+
+## Phase 15: Multi-Model Experimentation & Comparison (Gate PASS)
+- [x] Trains and evaluates 4 diverse model families (Logistic Regression, Decision Tree, Random Forest, HistGradientBoosting).
+- [x] Multi-metric evaluation matrix: Accuracy, Balanced Accuracy, Precision, Recall, F1, PR-AUC, and ROC-AUC.
+- [x] Locked test partition isolation: models fit strictly on train partition and evaluate against untouched test partition.
+- [x] Overfitting generalization gap detection (flags significant train vs test performance drops).
+- [x] Accuracy Illusion banner: flags deceptive high accuracy (>85%) masking low minority recall (<50%) on imbalanced data.
+- [x] Best model recommendation across F1, PR-AUC, and composite index (60% F1 + 40% PR-AUC).
+- [x] Unit test suite: tests/test_multi_model.py covering 4-model evaluation, metrics, and locked test set preservation.
+- [x] Automated benchmark: Gate 15 runner passing 7 of 7 checks.
+
+## Phase 16: Model Error Analysis & Diagnostics (Gate PASS)
+- [x] Computes exact confusion matrix (TP, FP, TN, FN) and normalized rates (FPR, FNR).
+- [x] Isolates top high-confidence False Positives and False Negatives with predicted probabilities and original feature contexts.
+- [x] Subgroup slicing analysis across categorical features to identify vulnerable slices.
+- [x] Blind Spot detection: flags slices where error rate exceeds 1.5x global model error rate.
+- [x] Confidence calibration separation: measures mean confidence of correct predictions vs prediction errors.
+- [x] Unit test suite: tests/test_error_analysis.py covering confusion matrix, top errors, subgroup slicing, and confidence separation.
+- [x] Automated benchmark: Gate 16 runner passing 7 of 7 checks.
+- [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 16 completed modules (Gates 2 through 16).

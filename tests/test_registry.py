@@ -12,7 +12,7 @@ def test_registry_lists_all_planned_modules():
     for exp in expected:
         assert exp in module_ids
 
-    # In Phase 12, nulls through imbalance_advisor are gate_passed
+    # All 16 modules are gate_passed
     completed = [
         "nulls",
         "split_eval",
@@ -25,6 +25,10 @@ def test_registry_lists_all_planned_modules():
         "imbalance_advisor",
         "leakage",
         "leakage_advisor",
+        "pipeline",
+        "quality_assessment",
+        "multi_model",
+        "error_analysis",
     ]
     for m in modules:
         if m.id in completed:

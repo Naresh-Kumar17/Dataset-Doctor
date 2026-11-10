@@ -14,8 +14,8 @@
 ### *The Data-to-Model Quality, ML Reliability & Leak-Free Remediation Platform*
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live%20on%20Render-00E599?style=for-the-badge&logo=render&logoColor=000)](https://dataset-doctor-8c7b.onrender.com/)
-[![Gate 12 PASS](https://img.shields.io/badge/Gate%2012-PASS%20(12%2F12)-7CFFB2?style=for-the-badge&logo=checkmarx&logoColor=000)](docs/gate_log.md)
-[![Test Suite](https://img.shields.io/badge/Tests-143%20Passed-FFD93D?style=for-the-badge&logo=pytest&logoColor=000)](tests/)
+[![Gate 16 PASS](https://img.shields.io/badge/Gate%2016-PASS%20(16%2F16)-7CFFB2?style=for-the-badge&logo=checkmarx&logoColor=000)](docs/gate_log.md)
+[![Test Suite](https://img.shields.io/badge/Tests-159%20Passed-FFD93D?style=for-the-badge&logo=pytest&logoColor=000)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.14-6BCBFF?style=for-the-badge&logo=python&logoColor=000)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-B197FC?style=for-the-badge)](LICENSE)
 [![Privacy First](https://img.shields.io/badge/Privacy-100%25%20Local%20First-FF6B9D?style=for-the-badge)](docs/authentication%20and%20security.md)
@@ -348,7 +348,7 @@ Core Progress: [████████████████████░�
 <td width="33%" valign="top" style="background:#FAF5FF;border:1px solid #E9D5FF;padding:12px;border-radius:8px;">
 
 #### 🔍 Phase 16: Error Diagnostics
-<span style="background:#9333EA;color:#FFF;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;">🟣 ROADMAP</span>
+<span style="background:#10B981;color:#FFF;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;">🟢 GATE PASSED</span>
 - **Interactive Confusion Matrix**: Real counts, error rates, and false-positive cost breakdown.
 - **Residual Distribution**: Error histograms and worst-prediction segment drill-down.
 - **Threshold Tuning Grid**: Visual trade-offs between precision and recall curves.

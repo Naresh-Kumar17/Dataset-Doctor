@@ -105,7 +105,28 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
         name="10-Step Deterministic Pipeline",
         phase=13,
         description="Enforce strict causal execution ordering and generate verified reproduce.py clean scripts.",
-        status="not_built",
+        status="gate_passed",
+    ),
+    "quality_assessment": ModuleInfo(
+        id="quality_assessment",
+        name="Unified Data-to-Model Quality Assessment",
+        phase=14,
+        description="Cross-module risk matrix, overall data quality score (0-100), and training blocker enforcement.",
+        status="gate_passed",
+    ),
+    "multi_model": ModuleInfo(
+        id="multi_model",
+        name="Multi-Model Experimentation & Comparison",
+        phase=15,
+        description="Train and evaluate 4 diverse model families on the locked test partition with overfitting guards.",
+        status="gate_passed",
+    ),
+    "error_analysis": ModuleInfo(
+        id="error_analysis",
+        name="Model Error Analysis & Diagnostics",
+        phase=16,
+        description="Confusion matrix rates, top confidence errors, subgroup slicing blind spots, and calibration.",
+        status="gate_passed",
     ),
 }
 

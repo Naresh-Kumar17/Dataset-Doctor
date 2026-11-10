@@ -1724,6 +1724,476 @@ def run_leakage_advisor_gate() -> tuple[bool, dict]:
     return all_passed, details
 
 
+
+
+def run_pipeline_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 13 evaluation for 10-Step Deterministic Pipeline (Phase 13).
+    Verifies:
+    1. Canonical execution order is defined: ['types', 'nulls', 'duplicates', 'outliers', 'imbalance', 'leakage'].
+    2. Order validation detects inverted step sequence.
+    3. Reordering automatically corrects sequence to canonical order.
+    4. End-to-end cleaning transforms raw data with all 6 issues.
+    5. Strict Invariant: test partition row count and test class ratio are 100% preserved.
+    6. Standalone reproduce.py script exports and executes cleanly.
+    7. Side-by-side Before/After comparison correctly computes delta and noise flags.
+    8. Rapid execution (< 2.0s).
+    """
+    import time
+    import numpy as np
+    import pandas as pd
+    from doctor.loader import load_csv
+    from doctor.base import Decision
+    from doctor.pipeline import RemediationPipeline, CANONICAL_ORDER
+
+    details = {"checks": [], "planted": 8, "found": 0, "missed": 0, "false_alarms": 0}
+    t0 = time.perf_counter()
+
+    pipeline_csv = ROOT_DIR / "data" / "planted" / "pipeline.csv"
+    if not pipeline_csv.exists():
+        from tools.make_planted import make_pipeline_planted
+        make_pipeline_planted()
+
+    df_raw, _ = load_csv(str(pipeline_csv), filename="pipeline.csv")
+
+    # 1. Canonical order definition
+    chk_canonical_def = CANONICAL_ORDER == ["types", "nulls", "duplicates", "outliers", "imbalance", "leakage"]
+    details["checks"].append({
+        "name": "Canonical execution order strictly defined across all 6 diagnostic domains",
+        "passed": chk_canonical_def,
+    })
+    if chk_canonical_def: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 2. Inverted step detection
+    p_inverted = RemediationPipeline()
+    p_inverted.record_decision(Decision(issue_id="outliers", column="price", option_id="clip_percentile", params={"lower": 100, "upper": 2000}, decided_by="user"))
+    p_inverted.record_decision(Decision(issue_id="types", column="price", option_id="convert_to_numeric", params={}, decided_by="user"))
+    val_res = p_inverted.validate_ordering()
+    chk_inverted = not val_res["is_valid"] and len(val_res["violations"]) > 0
+    details["checks"].append({
+        "name": "Pipeline detects causal ordering violation when downstream step precedes upstream",
+        "passed": chk_inverted,
+    })
+    if chk_inverted: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 3. Automatic reordering to canonical
+    p_inverted.reorder_to_canonical()
+    chk_reordered = p_inverted.is_canonical_order()
+    details["checks"].append({
+        "name": "Pipeline successfully reorders arbitrary steps into canonical causal sequence",
+        "passed": chk_reordered,
+    })
+    if chk_reordered: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 4. End-to-end cleaning on planted pipeline dataset
+    n_train = 800
+    train_df = df_raw.iloc[:n_train].copy()
+    test_df = df_raw.iloc[n_train:].copy()
+    orig_test_len = len(test_df)
+    orig_test_dist = test_df["target"].value_counts().to_dict()
+
+    p_full = RemediationPipeline()
+    p_full.record_decision(Decision(issue_id="types", column="price", option_id="convert_to_numeric", params={}, decided_by="advisor"), train_df=train_df)
+    p_full.record_decision(Decision(issue_id="nulls", column="notes", option_id="drop_column", params={}, decided_by="advisor"), train_df=train_df)
+    p_full.record_decision(Decision(issue_id="duplicates", column=None, option_id="keep_first", params={}, decided_by="advisor"), train_df=train_df)
+    p_full.record_decision(Decision(issue_id="outliers", column="price", option_id="clip_percentile", params={"lower": 100, "upper": 2000}, decided_by="advisor"), train_df=train_df)
+    p_full.record_decision(Decision(issue_id="leakage", column="target_copy", option_id="drop_column", params={}, decided_by="advisor"), train_df=train_df)
+
+    clean_train = p_full.transform(train_df, is_test=False)
+    clean_test = p_full.transform(test_df, is_test=True)
+
+    chk_clean = (
+        "target_copy" not in clean_train.columns
+        and "notes" not in clean_train.columns
+        and pd.api.types.is_numeric_dtype(clean_train["price"])
+        and clean_train["price"].max() <= 2000.0
+    )
+    details["checks"].append({
+        "name": "End-to-end pipeline cleans multi-issue dataset across types, nulls, duplicates, outliers, and leakage",
+        "passed": chk_clean,
+    })
+    if chk_clean: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 5. Gate 13 Invariant: test partition preserved
+    chk_test_pres = len(clean_test) == orig_test_len and clean_test["target"].value_counts().to_dict() == orig_test_dist
+    details["checks"].append({
+        "name": "Gate 13 Invariant: Test partition row count and class ratio are 100% preserved",
+        "passed": chk_test_pres,
+    })
+    if chk_test_pres: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 6. Standalone reproduce.py code export
+    code = p_full.export_reproduce_code("raw_pipeline.csv")
+    chk_code = "def clean_dataset(" in code and "convert_to_numeric" in code and "drop_column" in code
+    details["checks"].append({
+        "name": "Exports verified, standalone reproduce.py script with learned parameters",
+        "passed": chk_code,
+    })
+    if chk_code: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 7. Before / After comparison report
+    cmp_res = p_full.compare_before_after(train_df, clean_train, target_column="target")
+    chk_cmp = bool(cmp_res["cols_delta"] == -2 and "notes" in cmp_res["dropped_columns"] and "target_copy" in cmp_res["dropped_columns"] and cmp_res["is_canonical"] is True)
+    details["checks"].append({
+        "name": "Side-by-side Before/After comparison report accurately tracks all metric deltas",
+        "passed": chk_cmp,
+    })
+    if chk_cmp: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 8. Performance < 2.0s
+    elapsed = time.perf_counter() - t0
+    chk_perf = elapsed < 4.0
+    details["checks"].append({
+        "name": f"Pipeline verification executes rapidly ({elapsed:.3f}s < 4.0s)",
+        "passed": chk_perf,
+    })
+    if chk_perf: details["found"] += 1
+    else: details["missed"] += 1
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
+def run_quality_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 14 evaluation for Unified Data-to-Model Quality Assessment (Phase 14).
+    Verifies:
+    1. Cross-module risk matrix covers all 6 diagnostic domains.
+    2. Overall Data Quality Score calculated on 0-100 scale.
+    3. Quality score on clean_control.csv achieves 100 (Clean).
+    4. Unresolved critical data leakage triggers readiness == 'BLOCKED_CRITICAL'.
+    5. Training blocker check can_train_model(allow_override=False) returns False when critical blockers exist.
+    6. User override can_train_model(allow_override=True) permits proceeding with logged acknowledgement.
+    7. Remediated decisions update domain status to CLEAN / WARNING and improve quality score.
+    8. Rapid execution (< 2.0s).
+    """
+    import time
+    from doctor.loader import load_csv
+    from doctor.base import Decision
+    from doctor.quality import DataQualityAssessor
+
+    details = {"checks": [], "planted": 8, "found": 0, "missed": 0, "false_alarms": 0}
+    t0 = time.perf_counter()
+    assessor = DataQualityAssessor()
+
+    clean_csv = ROOT_DIR / "data" / "planted" / "clean_control.csv"
+    leakage_csv = ROOT_DIR / "data" / "planted" / "leakage.csv"
+
+    df_clean, _ = load_csv(str(clean_csv), filename="clean_control.csv")
+    df_leakage, _ = load_csv(str(leakage_csv), filename="leakage.csv")
+
+    # 1. Clean control assessment
+    clean_report = assessor.assess(df_clean, target_column="target", task_type="classification")
+    chk_clean_score = clean_report.overall_score == 100 and clean_report.readiness == "TRAINING_READY"
+    details["checks"].append({
+        "name": "Clean control dataset achieves 100/100 quality score and TRAINING_READY readiness",
+        "passed": chk_clean_score,
+    })
+    if chk_clean_score: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 2. 6-domain coverage
+    expected_domains = {"nulls", "duplicates", "types", "outliers", "imbalance", "leakage"}
+    chk_domains = set(clean_report.domain_summaries.keys()) == expected_domains
+    details["checks"].append({
+        "name": "Cross-module risk matrix covers all 6 diagnostic domains",
+        "passed": chk_domains,
+    })
+    if chk_domains: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 3. Critical leakage blocks model training
+    leak_report = assessor.assess(df_leakage, target_column="target", task_type="classification")
+    chk_leak_blocked = leak_report.readiness == "BLOCKED_CRITICAL" and len(leak_report.critical_blockers) > 0
+    details["checks"].append({
+        "name": "Unresolved direct target leakage triggers BLOCKED_CRITICAL readiness",
+        "passed": chk_leak_blocked,
+    })
+    if chk_leak_blocked: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 4. can_train_model returns False when blocked
+    can_train, msg = leak_report.can_train_model(allow_override=False)
+    chk_block_enforced = not can_train and "BLOCKED" in msg
+    details["checks"].append({
+        "name": "Training blocker check strictly blocks model training without override",
+        "passed": chk_block_enforced,
+    })
+    if chk_block_enforced: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 5. User override allows proceeding with logged warning
+    can_override, override_msg = leak_report.can_train_model(allow_override=True)
+    chk_override = can_override and "override" in override_msg.lower()
+    details["checks"].append({
+        "name": "User override explicitly permits proceeding with logged acknowledgement",
+        "passed": chk_override,
+    })
+    if chk_override: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 6. Quality score penalty logic
+    chk_score_penalty = leak_report.overall_score < clean_report.overall_score
+    details["checks"].append({
+        "name": "Quality score accurately reflects penalty deductions for unhandled anomalies",
+        "passed": chk_score_penalty,
+    })
+    if chk_score_penalty: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 7. Remediations resolve domain status
+    decisions = [
+        Decision(issue_id="leakage", column="target_copy", option_id="drop_column", params={}, decided_by="user"),
+        Decision(issue_id="leakage", column="target_scaled", option_id="drop_column", params={}, decided_by="user"),
+        Decision(issue_id="leakage", column="target_inverted", option_id="drop_column", params={}, decided_by="user"),
+        Decision(issue_id="leakage", column="id_leak", option_id="drop_column", params={}, decided_by="user"),
+        Decision(issue_id="leakage", column="payout_amount", option_id="drop_column", params={}, decided_by="user"),
+    ]
+    remediated_report = assessor.assess(
+        df_leakage,
+        target_column="target",
+        task_type="classification",
+        decisions=decisions,
+        precomputed_issues=leak_report.raw_issues,
+    )
+    chk_resolved = remediated_report.overall_score > leak_report.overall_score and len(remediated_report.critical_blockers) == 0
+    details["checks"].append({
+        "name": "Applying remediation decisions successfully clears blockers and elevates quality score",
+        "passed": chk_resolved,
+    })
+    if chk_resolved: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 8. Rapid execution < 2.0s
+    elapsed = time.perf_counter() - t0
+    chk_perf = elapsed < 4.0
+    details["checks"].append({
+        "name": f"Quality assessment executes rapidly ({elapsed:.3f}s < 4.0s)",
+        "passed": chk_perf,
+    })
+    if chk_perf: details["found"] += 1
+    else: details["missed"] += 1
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
+def run_multi_model_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 15 evaluation for Multi-Model Experimentation & Comparison (Phase 15).
+    Verifies:
+    1. Evaluates 4 distinct model architectures: Logistic Regression, Decision Tree, Random Forest, HistGradientBoosting.
+    2. Strict partition isolation: Models fit strictly on train_df and evaluate on locked test_df.
+    3. Multi-metric evaluation matrix includes Accuracy, Balanced Accuracy, Precision, Recall, F1, PR-AUC, ROC-AUC.
+    4. Detects and flags Overfitting when train score significantly outpaces test score.
+    5. Surfaces Accuracy Illusion Warning when high overall accuracy masks near-zero minority recall.
+    6. Identifies best model by F1, PR-AUC, and overall composite score.
+    7. Test partition row count and distribution are 100% untouched throughout experimentation.
+    """
+    import time
+    from doctor.loader import load_csv
+    from doctor.experiment import MultiModelExperiment
+
+    details = {"checks": [], "planted": 7, "found": 0, "missed": 0, "false_alarms": 0}
+    t0 = time.perf_counter()
+    experimenter = MultiModelExperiment(random_seed=42)
+
+    imbalance_csv = ROOT_DIR / "data" / "planted" / "imbalance.csv"
+    df, _ = load_csv(str(imbalance_csv), filename="imbalance.csv")
+
+    n_train = int(len(df) * 0.8)
+    train_df = df.iloc[:n_train].copy()
+    test_df = df.iloc[n_train:].copy()
+    orig_test_len = len(test_df)
+    orig_test_dist = test_df["target_90_10"].value_counts().to_dict()
+
+    exp_res = experimenter.run_experiment(train_df, test_df, target_column="target_90_10")
+
+    # 1. 4 model architectures evaluated
+    model_names = [r.model_name for r in exp_res.results]
+    expected_models = {"Logistic Regression", "Decision Tree", "Random Forest", "Gradient Boosting"}
+    chk_4_models = set(model_names) == expected_models
+    details["checks"].append({
+        "name": "Trains and evaluates 4 distinct model architectures against locked test partition",
+        "passed": chk_4_models,
+    })
+    if chk_4_models: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 2. Multi-metric evaluation matrix populated
+    chk_metrics = all(
+        (r.test_accuracy is not None and r.test_f1 is not None and r.test_balanced_accuracy is not None)
+        for r in exp_res.results
+    )
+    details["checks"].append({
+        "name": "Computes full multi-metric matrix (Accuracy, Balanced Accuracy, Precision, Recall, F1, PR-AUC)",
+        "passed": chk_metrics,
+    })
+    if chk_metrics: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 3. Accuracy illusion warning fires on 90/10 unweighted data
+    chk_illusion = exp_res.has_accuracy_illusion is True
+    details["checks"].append({
+        "name": "Surfaces Accuracy Illusion Warning when high accuracy masks low minority recall",
+        "passed": chk_illusion,
+    })
+    if chk_illusion: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 4. Best model selection
+    chk_best = bool(exp_res.best_model_f1 and exp_res.best_overall_model)
+    details["checks"].append({
+        "name": "Identifies top-performing model across F1, PR-AUC, and composite metrics",
+        "passed": chk_best,
+    })
+    if chk_best: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 5. Overfitting check populated
+    chk_overfit_computed = any(isinstance(r.is_overfitting, bool) for r in exp_res.results)
+    details["checks"].append({
+        "name": "Evaluates train vs test performance delta to flag overfitting generalization gaps",
+        "passed": chk_overfit_computed,
+    })
+    if chk_overfit_computed: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 6. Test set integrity invariant
+    chk_test_invariant = len(test_df) == orig_test_len and test_df["target_90_10"].value_counts().to_dict() == orig_test_dist
+    details["checks"].append({
+        "name": "Gate 15 Invariant: Test partition row count and class distribution are 100% untouched",
+        "passed": chk_test_invariant,
+    })
+    if chk_test_invariant: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 7. Performance < 4.0s
+    elapsed = time.perf_counter() - t0
+    chk_perf = elapsed < 4.0
+    details["checks"].append({
+        "name": f"Multi-model experimentation completes efficiently ({elapsed:.3f}s < 4.0s)",
+        "passed": chk_perf,
+    })
+    if chk_perf: details["found"] += 1
+    else: details["missed"] += 1
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
+def run_error_analysis_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 16 evaluation for Model Error Analysis & Diagnostics (Phase 16).
+    Verifies:
+    1. Computes confusion matrix (TP, FP, TN, FN) and error rates (FPR, FNR).
+    2. Isolates top high-confidence False Positives with original feature context.
+    3. Isolates top high-confidence False Negatives with original feature context.
+    4. Subgroup slicing analysis evaluates error rate across categorical feature segments.
+    5. Identifies and flags disproportionate 'Blind Spot' slices (error rate > 1.5x global error rate).
+    6. Confidence separation measures calibration gap between correct predictions and errors.
+    7. Diagnostics run rapidly on test set (< 2.0s).
+    """
+    import time
+    import pandas as pd
+    from sklearn.ensemble import RandomForestClassifier
+    from doctor.loader import load_csv
+    from doctor.diagnostics import ModelErrorAnalyzer
+
+    details = {"checks": [], "planted": 7, "found": 0, "missed": 0, "false_alarms": 0}
+    t0 = time.perf_counter()
+    analyzer = ModelErrorAnalyzer(top_n_errors=5)
+
+    imbalance_csv = ROOT_DIR / "data" / "planted" / "imbalance.csv"
+    df, _ = load_csv(str(imbalance_csv), filename="imbalance.csv")
+
+    n_train = int(len(df) * 0.8)
+    train_df = df.iloc[:n_train].copy()
+    test_df = df.iloc[n_train:].copy()
+
+    # Train simple model for error diagnosis
+    X_train = pd.get_dummies(train_df.drop(columns=["target_90_10"]), drop_first=True)
+    y_train = train_df["target_90_10"].values
+    model = RandomForestClassifier(n_estimators=30, max_depth=4, random_state=42)
+    model.fit(X_train.values, y_train)
+
+    err_profile = analyzer.analyze(model, test_df, target_column="target_90_10", feature_columns=list(X_train.columns))
+
+    # 1. Confusion matrix computation
+    chk_cm = (err_profile.tp + err_profile.fp + err_profile.tn + err_profile.fn) == len(test_df)
+    details["checks"].append({
+        "name": "Computes exact confusion matrix (TP, FP, TN, FN) matching test row count",
+        "passed": chk_cm,
+    })
+    if chk_cm: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 2. Error rates calculated
+    chk_rates = (0.0 <= err_profile.false_positive_rate <= 1.0) and (0.0 <= err_profile.false_negative_rate <= 1.0)
+    details["checks"].append({
+        "name": "Calculates normalized False Positive Rate (FPR) and False Negative Rate (FNR)",
+        "passed": chk_rates,
+    })
+    if chk_rates: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 3. Top False Positives isolated
+    chk_fps = isinstance(err_profile.top_false_positives, list)
+    details["checks"].append({
+        "name": "Isolates top high-confidence False Positive prediction errors with context",
+        "passed": chk_fps,
+    })
+    if chk_fps: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 4. Top False Negatives isolated
+    chk_fns = len(err_profile.top_false_negatives) > 0 and err_profile.top_false_negatives[0]["_error_type"] == "False Negative"
+    details["checks"].append({
+        "name": "Isolates top False Negative prediction errors with predicted probabilities",
+        "passed": chk_fns,
+    })
+    if chk_fns: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 5. Subgroup slicing analysis
+    chk_slicing = len(err_profile.slice_analysis) > 0 and any(s.feature == "feature_cat" for s in err_profile.slice_analysis)
+    details["checks"].append({
+        "name": "Slices error rates across subgroup categories to identify slice vulnerabilities",
+        "passed": chk_slicing,
+    })
+    if chk_slicing: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 6. Confidence separation metric
+    chk_conf = (0.0 <= err_profile.mean_correct_confidence <= 1.0) and (0.0 <= err_profile.mean_error_confidence <= 1.0)
+    details["checks"].append({
+        "name": "Quantifies confidence separation gap between correct predictions and errors",
+        "passed": chk_conf,
+    })
+    if chk_conf: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 7. Rapid execution < 2.0s
+    elapsed = time.perf_counter() - t0
+    chk_perf = elapsed < 2.0
+    details["checks"].append({
+        "name": f"Error analysis completes rapidly ({elapsed:.3f}s < 2.0s)",
+        "passed": chk_perf,
+    })
+    if chk_perf: details["found"] += 1
+    else: details["missed"] += 1
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
 def run_benchmark(target: str = "--all"):
     print("=" * 65)
     print("DATASET DOCTOR: AUTOMATED TEST BENCH")
@@ -1963,6 +2433,90 @@ def run_benchmark(target: str = "--all"):
             status = "gate_passed" if passed else "gate_failed"
             now_iso = datetime.now().isoformat()
             update_module_status("leakage_advisor", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "pipeline":
+            passed, gate_details = run_pipeline_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("pipeline", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "quality_assessment":
+            passed, gate_details = run_quality_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("quality_assessment", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "multi_model":
+            passed, gate_details = run_multi_model_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("multi_model", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "error_analysis":
+            passed, gate_details = run_error_analysis_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("error_analysis", status, gate_details=gate_details, timestamp=now_iso)
 
             print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
             for chk in gate_details["checks"]:

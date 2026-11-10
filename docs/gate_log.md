@@ -213,7 +213,65 @@
 
 ---
 
-## Future Gates Pipeline (Phases 13–21 Specifications)
+## 2026-11-06  Phase 13: 10-Step Deterministic Pipeline & Causal Ordering   PASS
+- Automated benchmark runner verified via `python -m doctor.bench pipeline` and `python -m doctor.bench --all`:
+  - 8 of 8 Gate 13 checks PASSED:
+    - [PASS] Canonical execution order strictly defined across all 6 diagnostic domains (`types` -> `nulls` -> `duplicates` -> `outliers` -> `imbalance` -> `leakage`).
+    - [PASS] Pipeline detects causal ordering violation when downstream step precedes upstream.
+    - [PASS] Pipeline successfully reorders arbitrary steps into canonical causal sequence.
+    - [PASS] End-to-end pipeline cleans multi-issue dataset across types, nulls, duplicates, outliers, and leakage.
+    - [PASS] Gate 13 Invariant: Test partition row count and class ratio are 100% preserved.
+    - [PASS] Exports verified, standalone reproduce.py script with learned parameters.
+    - [PASS] Side-by-side Before/After comparison report accurately tracks all metric deltas.
+    - [PASS] Pipeline verification executes rapidly (< 4.0s).
+- Full regression suite: 100% PASS across all 12 benchmark modules (Gates 2 through 13).
+
+---
+
+## 2026-11-07  Phase 14: Unified Data-to-Model Quality Assessment   PASS
+- Automated benchmark runner verified via `python -m doctor.bench quality_assessment` and `python -m doctor.bench --all`:
+  - 8 of 8 Gate 14 checks PASSED:
+    - [PASS] Clean control dataset achieves 100/100 quality score and TRAINING_READY readiness.
+    - [PASS] Cross-module risk matrix covers all 6 diagnostic domains.
+    - [PASS] Unresolved direct target leakage triggers BLOCKED_CRITICAL readiness.
+    - [PASS] Training blocker check strictly blocks model training without override.
+    - [PASS] User override explicitly permits proceeding with logged acknowledgement.
+    - [PASS] Quality score accurately reflects penalty deductions for unhandled anomalies.
+    - [PASS] Applying remediation decisions successfully clears blockers and elevates quality score.
+    - [PASS] Quality assessment executes rapidly (< 4.0s).
+- Full regression suite: 100% PASS across all 13 benchmark modules (Gates 2 through 14).
+
+---
+
+## 2026-11-08  Phase 15: Multi-Model Experimentation & Comparison   PASS
+- Automated benchmark runner verified via `python -m doctor.bench multi_model` and `python -m doctor.bench --all`:
+  - 7 of 7 Gate 15 checks PASSED:
+    - [PASS] Trains and evaluates 4 distinct model architectures against locked test partition (Logistic Regression, Decision Tree, Random Forest, Gradient Boosting).
+    - [PASS] Computes full multi-metric matrix (Accuracy, Balanced Accuracy, Precision, Recall, F1, PR-AUC).
+    - [PASS] Surfaces Accuracy Illusion Warning when high accuracy masks low minority recall.
+    - [PASS] Identifies top-performing model across F1, PR-AUC, and composite metrics.
+    - [PASS] Evaluates train vs test performance delta to flag overfitting generalization gaps.
+    - [PASS] Gate 15 Invariant: Test partition row count and class distribution are 100% untouched.
+    - [PASS] Multi-model experimentation completes efficiently (< 4.0s).
+- Full regression suite: 100% PASS across all 14 benchmark modules (Gates 2 through 15).
+
+---
+
+## 2026-11-09  Phase 16: Model Error Analysis & Diagnostics   PASS
+- Automated benchmark runner verified via `python -m doctor.bench error_analysis` and `python -m doctor.bench --all`:
+  - 7 of 7 Gate 16 checks PASSED:
+    - [PASS] Computes exact confusion matrix (TP, FP, TN, FN) matching test row count.
+    - [PASS] Calculates normalized False Positive Rate (FPR) and False Negative Rate (FNR).
+    - [PASS] Isolates top high-confidence False Positive prediction errors with context.
+    - [PASS] Isolates top False Negative prediction errors with predicted probabilities.
+    - [PASS] Slices error rates across subgroup categories to identify slice vulnerabilities.
+    - [PASS] Quantifies confidence separation gap between correct predictions and errors.
+    - [PASS] Error analysis completes rapidly (< 2.0s).
+- Complete regression suite: 100% PASS across all 16 benchmark modules (Gates 2 through 16).
+
+---
+
+## Future Gates Pipeline (Phases 17–21 Specifications)
 
 ### Gate 9: Class Imbalance Detection (Scheduled)
 - Planted targets: 90/10, 99/1, multi-class with tiny minority (5%), and 50/50 balanced control.
