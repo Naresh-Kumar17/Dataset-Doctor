@@ -21,7 +21,7 @@
 
       {% if module.id == 'nulls' or module.id == 'nulls_advisor' %}
         <a href="/module/{{ module.id }}" class="btn primary" style="min-height: 40px; padding: 8px 18px; font-size: 13px;">RUN ADVISE & DETECT</a>
-      {% elif module.id in ('duplicates', 'types', 'outliers', 'outliers_advisor') %}
+      {% elif module.id in ('duplicates', 'types', 'outliers', 'outliers_advisor', 'imbalance', 'imbalance_advisor') %}
         <a href="/module/{{ module.id }}" class="btn primary" style="min-height: 40px; padding: 8px 18px; font-size: 13px;">RUN DETECT & ADVISE</a>
       {% endif %}
     </div>
@@ -948,6 +948,146 @@
             window.location.reload();
           } else {
             alert("Error: " + (data.detail || "Failed to apply outlier fix"));
+          }
+        } catch (err) {
+          alert("Network error: " + err.message);
+        }
+      }
+    </script>
+
+  {% elif module.id == 'imbalance' or module.id == 'imbalance_advisor' %}
+    <!-- Class Imbalance Diagnostic & Remediation Workbench (Phase 9 & 10) -->
+    <div class="summary-strip" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px;">
+      <div class="card" style="margin: 0; padding: 14px; border-left: 4px solid var(--danger);">
+        <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; color: var(--muted);">Severe Imbalance (&lt;10%)</div>
+        <div style="font-size: 26px; font-weight: 900; color: var(--danger); margin-top: 4px;">{{ summary_counts.high or 0 }}</div>
+      </div>
+      <div class="card" style="margin: 0; padding: 14px; border-left: 4px solid var(--warning);">
+        <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; color: var(--muted);">Moderate Imbalance (&lt;20%)</div>
+        <div style="font-size: 26px; font-weight: 900; color: var(--warning); margin-top: 4px;">{{ summary_counts.medium or 0 }}</div>
+      </div>
+      <div class="card" style="margin: 0; padding: 14px; border-left: 4px solid var(--primary);">
+        <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; color: var(--muted);">Target Analyzed</div>
+        <div style="font-size: 16px; font-weight: 900; color: var(--primary); margin-top: 8px;">{{ target_col or "Multiple Targets" }}</div>
+      </div>
+      <div class="card" style="margin: 0; padding: 14px; border-left: 4px solid #059669;">
+        <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; color: var(--muted);">Resampling Safety</div>
+        <div style="font-size: 14px; font-weight: 900; color: #059669; margin-top: 8px;">TRAIN-ONLY GUARANTEED</div>
+      </div>
+    </div>
+
+    <!-- Accuracy Illusion & Metric Guard Banner -->
+    <div class="banner warning" style="margin-bottom: 20px; border-left: 4px solid var(--danger);">
+      <div style="font-weight: 900; font-size: 15px; margin-bottom: 4px;">⚠️ THE ACCURACY ILLUSION: NEVER EVALUATE BY ACCURACY ALONE</div>
+      <div style="font-size: 13px; line-height: 1.5;">
+        When target outcomes are severely skewed, a naive baseline predicting only the majority class achieves deceptively high accuracy while missing 100% of critical minority events. Always evaluate models on <strong>Minority Recall, Precision, F1-Score, and PR-AUC</strong>.
+      </div>
+    </div>
+
+    <!-- Real-World Prevalence Prompt Banner -->
+    <div class="banner info" style="margin-bottom: 24px; border-left: 4px solid var(--primary);">
+      <div style="font-weight: 800; font-size: 14px; margin-bottom: 2px;">🌍 REAL-WORLD PREVALENCE AUDIT</div>
+      <div style="font-size: 13px;">
+        Does this dataset reflect the natural real-world prevalence of the event? If artificially sampled (e.g. 50/50 test sets), model predicted probabilities will require Platt scaling or isotonic calibration before deployment.
+      </div>
+    </div>
+
+    <!-- Imbalance Issues & Remediation Table -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 class="card-title" style="margin: 0;">CLASS IMBALANCE DIAGNOSTICS & REMEDIATION</h3>
+        <span class="chip" style="background: #E0E7FF; color: #3730A3; font-weight: 800;">GATE 9 & 10 PASS</span>
+      </div>
+
+      {% if issues %}
+        <div style="overflow-x: auto;">
+          <table class="table" style="width: 100%; text-align: left; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--border);">
+                <th style="padding: 10px;">Target Column</th>
+                <th style="padding: 10px;">Ratio & Minority Share</th>
+                <th style="padding: 10px;">Severity & Certainty</th>
+                <th style="padding: 10px;">Advisor Recommendation</th>
+                <th style="padding: 10px; text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for iss in issues %}
+                <tr style="border-bottom: 1px solid var(--border); vertical-align: top;">
+                  <td style="padding: 12px 10px; font-weight: 700;">
+                    <code>{{ iss.column }}</code>
+                    <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+                      Classes: {{ iss.evidence.n_classes }} | Minority: '{{ iss.evidence.minority_class }}' ({{ iss.evidence.minority_count }} rows)
+                    </div>
+                  </td>
+                  <td style="padding: 12px 10px;">
+                    <div style="font-weight: 800; font-size: 14px; color: var(--danger);">
+                      {{ "%.1f"|format(iss.evidence.imbalance_ratio) }}:1
+                    </div>
+                    <div style="font-size: 12px; color: var(--muted);">
+                      {{ "%.1f%%"|format(iss.evidence.minority_share * 100) }} minority share
+                    </div>
+                  </td>
+                  <td style="padding: 12px 10px;">
+                    {{ format_badge(iss.evidence) | safe }}
+                  </td>
+                  <td style="padding: 12px 10px; max-width: 320px;">
+                    {% if iss.recommendation %}
+                      <div style="font-weight: 700; color: var(--primary); margin-bottom: 4px;">
+                        Recommended: {{ iss.recommendation.option | replace('_', ' ') | title }}
+                      </div>
+                      <div style="font-size: 12px; color: #4B5563; line-height: 1.4;">
+                        {{ iss.recommendation.reason }}
+                      </div>
+                    {% else %}
+                      <div style="font-size: 12px; color: var(--muted);">
+                        {{ iss.description }}
+                      </div>
+                    {% endif %}
+                  </td>
+                  <td style="padding: 12px 10px; text-align: right;">
+                    <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
+                      <button class="btn primary sm" onclick="applyImbalanceFix('{{ iss.column }}', 'class_weight')">
+                        ⚡ Apply Class Weights
+                      </button>
+                      <button class="btn secondary sm" onclick="applyImbalanceFix('{{ iss.column }}', 'random_oversample')">
+                        🔄 Oversample Train Only
+                      </button>
+                      <button class="btn secondary sm" style="font-size: 11px;" onclick="applyImbalanceFix('{{ iss.column }}', 'smote')">
+                        🧬 SMOTE (Numeric Only)
+                      </button>
+                      <button class="btn secondary sm" style="font-size: 11px;" onclick="applyImbalanceFix('{{ iss.column }}', 'leave')">
+                        🛡️ Leave Unchanged
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="banner success" style="margin: 0;">
+          <strong>PERFECT CLASS BALANCE FOUND</strong> — Target distributions are balanced (minority class &ge; 20%), preventing accuracy illusion bias.
+        </div>
+      {% endif %}
+    </div>
+
+    <script>
+      async function applyImbalanceFix(col, optionId, params = {}) {
+        if (!confirm("Apply '" + optionId + "' remediation to target column '" + col + "'? (Resampling is strictly train-only)")) return;
+        try {
+          const res = await fetch("/decide/imbalance/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ column: col, option_id: optionId, params: params })
+          });
+          const data = await res.json();
+          if (data.status === "success") {
+            alert(data.message);
+            window.location.reload();
+          } else {
+            alert("Error: " + (data.detail || "Failed to apply imbalance remediation"));
           }
         } catch (err) {
           alert("Network error: " + err.message);
