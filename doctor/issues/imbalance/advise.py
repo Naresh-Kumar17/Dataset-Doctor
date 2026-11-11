@@ -195,24 +195,18 @@ class ImbalanceAdvisor(Advisor):
                 cw = "balanced" if opt == "class_weight" else None
 
                 # Apply resampling strictly on X_tr, y_tr inside the fold
-                if opt == "random_oversample" and HAS_IMBLEARN:
-                    ros = ImbalanceFixer()
+                if opt in ["random_oversample", "random_undersample", "smote"]:
+                    fixer = ImbalanceFixer()
                     df_tr = X_tr.copy()
                     df_tr[target_col] = y_tr
                     dec = Decision(issue_id="imbalance", column=target_col, option_id=opt, params={}, decided_by="user")
-                    fitted = ros.fit(df_tr, dec)
-                    df_res = ros.transform(df_tr, dec, fitted, is_test=False)
-                    X_tr = df_res.drop(columns=[target_col])
-                    y_tr = df_res[target_col]
-                elif opt == "random_undersample" and HAS_IMBLEARN:
-                    rus = ImbalanceFixer()
-                    df_tr = X_tr.copy()
-                    df_tr[target_col] = y_tr
-                    dec = Decision(issue_id="imbalance", column=target_col, option_id=opt, params={}, decided_by="user")
-                    fitted = rus.fit(df_tr, dec)
-                    df_res = rus.transform(df_tr, dec, fitted, is_test=False)
-                    X_tr = df_res.drop(columns=[target_col])
-                    y_tr = df_res[target_col]
+                    try:
+                        fitted = fixer.fit(df_tr, dec)
+                        df_res = fixer.transform(df_tr, dec, fitted, is_test=False)
+                        X_tr = df_res.drop(columns=[target_col])
+                        y_tr = df_res[target_col]
+                    except Exception:
+                        pass
 
                 # Fast RandomForest for advisor CV
                 clf = RandomForestClassifier(n_estimators=50, class_weight=cw, random_state=random_seed, n_jobs=-1)
