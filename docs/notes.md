@@ -23,5 +23,14 @@
 - **Ambiguous date format user disambiguation**: Dates where both day and month components are 12 or less (e.g. '03/04/2021') cannot be guessed reliably without domain knowledge. The advisor surfaces explicit Day-First (DD/MM) vs Month-First (MM/DD) choices and asks the user rather than guessing silently.
 - **Zero-variance and identifier pruning**: Constant columns (zero mutual information) and high-cardinality IDs (leakage and memorization vectors) are flagged for removal across both train and test partitions without altering test row counts.
 
+## Phase 7: Outliers Detection Notes
+- **Domain-impossible value enforcement**: Features with hard physical or logical boundaries (e.g. age < 0 or > 120, percentages > 100, negative salaries/counts) are flagged as certain errors (`severity="high"`). They are never treated as legitimate statistical extremes.
+- **Unit mix-up identification**: Isolated order-of-magnitude jumps (100x or 1000x the column median, such as 170,000 cm instead of 170 cm) point to data collection unit confusion (e.g. millimeters vs centimeters, grams vs kilograms).
+- **Robust Median Absolute Deviation (MAD) for skewed features**: Standard $1.5\times\text{IQR}$ formulas over-flag natural long tails on skewed continuous features (log-normal, Pareto distributions). Using robust MAD and 1%/99% percentile thresholds ensures clean skewed features stay under 5% flagged without discarding valid tail data.
+- **Categorical and binary immunity**: Outlier scanning strictly skips non-numeric, binary, and categorical columns to prevent false alarms.
 
-
+## Phase 8: Outlier Advisor & Fixer Notes
+- **Principled remediation hierarchy**: Impossible values are shortlisted for `set_to_null` so they can be imputed cleanly through the Null Advisor. Legitimate extremes are shortlisted for `leave`, `clip_percentile`, `clip_iqr`, or `log_transform`.
+- **Rare-class extreme protection**: When the prediction target is rare (< 20% minority share, e.g. severe accidents or fraud), extreme feature values frequently contain the critical signal. Dropping these rows would eliminate minority target instances; the advisor explicitly protects them and recommends `leave`.
+- **Simplicity tie-breaker on CV noise**: Tree-based models (RandomForest, XGBoost, LightGBM) are invariant to monotonic scaling and extreme tail values. When 5-fold CV evaluation shows that score deltas between options are smaller than CV standard deviation, the advisor flags a "close call" and recommends `leave` as the simpler, non-destructive tie-breaker.
+- **Strict test partition integrity**: All clipping bounds and quantile limits are fitted strictly on `train_df`. When applied to test data, the same train-derived bounds are enforced, and test row counts are strictly preserved (0 test rows dropped).
