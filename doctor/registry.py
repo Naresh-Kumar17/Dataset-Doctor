@@ -60,10 +60,17 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
     ),
     "outliers": ModuleInfo(
         id="outliers",
-        name="Outliers",
+        name="Outlier Detection",
         phase=7,
         description="Flag domain-impossible values, IQR/MAD extremes, and unit mix-ups.",
-        status="not_built",
+        status="gate_passed",
+    ),
+    "outliers_advisor": ModuleInfo(
+        id="outliers_advisor",
+        name="Outlier Advisor & Fixer",
+        phase=8,
+        description="Evidence-backed outlier remediation, test bounds preservation, and reproduce.py pipeline.",
+        status="gate_passed",
     ),
     "imbalance": ModuleInfo(
         id="imbalance",
