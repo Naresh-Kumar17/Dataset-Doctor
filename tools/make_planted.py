@@ -764,6 +764,64 @@ def make_pipeline_planted():
     return pipeline_csv, truth_path
 
 
+def make_explainability_planted():
+    """
+    Creates data/planted/explainability.csv and truth JSON (Phase 17).
+    Contains:
+    - 2 strong ground-truth signal features ('signal_alpha', 'signal_beta')
+    - 1 moderate signal feature ('signal_gamma')
+    - 2 pure noise features ('random_noise_gaussian', 'random_noise_uniform')
+    - 1 high-cardinality spurious categorical ('transaction_code', 80 unique categories)
+      that inflates native tree impurity importance but has ~0 validation permutation importance.
+    - Binary target ('target')
+    """
+    np.random.seed(42)
+    n_rows = 800
+
+    s_alpha = np.random.normal(0, 1, size=n_rows)
+    s_beta = np.random.normal(0, 1, size=n_rows)
+    s_gamma = np.random.normal(0, 1, size=n_rows)
+    noise_gauss = np.random.normal(0, 5, size=n_rows)
+    noise_unif = np.random.uniform(-10, 10, size=n_rows)
+    codes = [f"TX_{i:02d}" for i in np.random.randint(0, 80, size=n_rows)]
+
+    # Latent response
+    z = 2.0 * s_alpha + 1.5 * s_beta + 0.5 * s_gamma + np.random.normal(0, 0.5, size=n_rows)
+    p = 1 / (1 + np.exp(-z))
+    target = (np.random.uniform(0, 1, size=n_rows) < p).astype(int)
+
+    df = pd.DataFrame({
+        "signal_alpha": s_alpha,
+        "signal_beta": s_beta,
+        "signal_gamma": s_gamma,
+        "random_noise_gaussian": noise_gauss,
+        "random_noise_uniform": noise_unif,
+        "transaction_code": codes,
+        "target": target,
+    })
+
+    explain_csv = PLANTED_DIR / "explainability.csv"
+    df.to_csv(explain_csv, index=False)
+
+    truth = {
+        "dataset": "explainability",
+        "rows": n_rows,
+        "target_column": "target",
+        "planted_strong_features": ["signal_alpha", "signal_beta"],
+        "planted_moderate_features": ["signal_gamma"],
+        "planted_noise_features": ["random_noise_gaussian", "random_noise_uniform"],
+        "high_cardinality_feature": "transaction_code",
+        "high_cardinality_unique_count": 80,
+    }
+
+    truth_path = PLANTED_DIR / "explainability_truth.json"
+    with open(truth_path, "w", encoding="utf-8") as f:
+        json.dump(truth, f, indent=2)
+
+    print(f"Created {explain_csv.name} ({len(df)} rows) and {truth_path.name}")
+    return explain_csv, truth_path
+
+
 def main():
     print("Generating planted datasets...")
     make_clean_control()
@@ -775,6 +833,7 @@ def main():
     make_imbalance_planted()
     make_leakage_planted()
     make_pipeline_planted()
+    make_explainability_planted()
     print("All planted datasets successfully generated.")
 
 

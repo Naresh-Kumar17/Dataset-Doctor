@@ -1,0 +1,18 @@
+{
+  "dataset": "explainability",
+  "rows": 800,
+  "target_column": "target",
+  "planted_strong_features": [
+    "signal_alpha",
+    "signal_beta"
+  ],
+  "planted_moderate_features": [
+    "signal_gamma"
+  ],
+  "planted_noise_features": [
+    "random_noise_gaussian",
+    "random_noise_uniform"
+  ],
+  "high_cardinality_feature": "transaction_code",
+  "high_cardinality_unique_count": 80
+}
