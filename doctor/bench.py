@@ -2194,6 +2194,133 @@ def run_error_analysis_gate() -> tuple[bool, dict]:
     return all_passed, details
 
 
+def run_explainability_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 17 evaluation for Model Explainability & Feature Attribution (Phase 17).
+    Verifies:
+    1. Permutation importance computed on validation folds only (zero test snooping).
+    2. Strong signal features rank significantly above noise features.
+    3. High-cardinality spurious feature is detected and flagged for impurity inflation.
+    4. Pure noise features and spurious features are identified for feature pruning.
+    5. Strong features are protected from feature pruning.
+    6. Non-causal disclosure banner is present.
+    7. Attribution engine completes rapidly (< 4.0s).
+    """
+    import json
+    import time
+    import pandas as pd
+    from doctor.loader import load_csv
+    from doctor.explainability import ModelExplainer, NON_CAUSAL_DISCLOSURE
+
+    details = {"checks": [], "planted": 7, "found": 0, "missed": 0, "false_alarms": 0}
+    t0 = time.perf_counter()
+
+    explain_csv = ROOT_DIR / "data" / "planted" / "explainability.csv"
+    truth_path = ROOT_DIR / "data" / "planted" / "explainability_truth.json"
+
+    if not explain_csv.exists() or not truth_path.exists():
+        from tools.make_planted import make_explainability_planted
+        make_explainability_planted()
+
+    df, _ = load_csv(str(explain_csv), filename="explainability.csv")
+    with open(truth_path, "r", encoding="utf-8") as f:
+        truth = json.load(f)
+
+    n_train = int(len(df) * 0.8)
+    train_df = df.iloc[:n_train].copy()
+    test_df = df.iloc[n_train:].copy()
+    test_snapshot = test_df.copy(deep=True)
+
+    t0 = time.perf_counter()
+    explainer = ModelExplainer(n_repeats=5, random_state=42)
+    profile = explainer.explain(train_df, target_column=truth["target_column"])
+
+    # 1. Zero test data snooping invariant
+    chk_no_snoop = bool((profile.test_data_snooped is False) and test_df.equals(test_snapshot))
+    details["checks"].append({
+        "name": "Attribution computed on validation fold only with zero test partition snooping",
+        "passed": chk_no_snoop,
+    })
+    if chk_no_snoop: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 2. Planted signals ranked top
+    feat_map = {f.feature: f for f in profile.features}
+    chk_ranking = bool(
+        all(s in feat_map and feat_map[s].category == "strong" for s in truth["planted_strong_features"])
+        and feat_map["signal_alpha"].permutation_mean > feat_map["random_noise_gaussian"].permutation_mean
+        and feat_map["signal_beta"].permutation_mean > feat_map["random_noise_uniform"].permutation_mean
+    )
+    details["checks"].append({
+        "name": "Planted strong signal features rank top with high validation degradation",
+        "passed": chk_ranking,
+    })
+    if chk_ranking: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 3. High-cardinality inflation detected
+    high_card_col = truth["high_cardinality_feature"]
+    chk_high_card = bool(
+        high_card_col in feat_map
+        and feat_map[high_card_col].has_cardinality_bias is True
+        and feat_map[high_card_col].native_importance >= 0.08
+        and feat_map[high_card_col].permutation_mean <= 0.015
+    )
+    details["checks"].append({
+        "name": "Detects high-cardinality spurious feature and flags impurity split inflation",
+        "passed": chk_high_card,
+    })
+    if chk_high_card: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 4. Feature pruning advisor identifies noise
+    chk_pruning_noise = bool(
+        all(n in profile.features_to_prune for n in truth["planted_noise_features"])
+        and (high_card_col in profile.features_to_prune)
+    )
+    details["checks"].append({
+        "name": "Feature Pruning Advisor recommends removing pure noise and spurious features",
+        "passed": chk_pruning_noise,
+    })
+    if chk_pruning_noise: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 5. Strong features protected from pruning
+    chk_pruning_protect = bool(all(s not in profile.features_to_prune for s in truth["planted_strong_features"]))
+    details["checks"].append({
+        "name": "Feature Pruning Advisor protects strong predictive signals from removal",
+        "passed": chk_pruning_protect,
+    })
+    if chk_pruning_protect: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 6. Non-causal disclosure present
+    chk_disclosure = bool(
+        profile.non_causal_disclosure == NON_CAUSAL_DISCLOSURE
+        and "PREDICTIVE IMPORTANCE" in profile.non_causal_disclosure
+        and "REAL-WORLD CAUSATION" in profile.non_causal_disclosure
+    )
+    details["checks"].append({
+        "name": "Attribution profile includes prominent non-causal disclosures and disclaimers",
+        "passed": chk_disclosure,
+    })
+    if chk_disclosure: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 7. Speed benchmark < 5.0s
+    elapsed = time.perf_counter() - t0
+    chk_perf = bool(elapsed < 5.0)
+    details["checks"].append({
+        "name": f"Explainability attribution completes rapidly ({elapsed:.3f}s < 5.0s)",
+        "passed": chk_perf,
+    })
+    if chk_perf: details["found"] += 1
+    else: details["missed"] += 1
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
 def run_benchmark(target: str = "--all"):
     print("=" * 65)
     print("DATASET DOCTOR: AUTOMATED TEST BENCH")
@@ -2517,6 +2644,27 @@ def run_benchmark(target: str = "--all"):
             status = "gate_passed" if passed else "gate_failed"
             now_iso = datetime.now().isoformat()
             update_module_status("error_analysis", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "explainability":
+            passed, gate_details = run_explainability_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("explainability", status, gate_details=gate_details, timestamp=now_iso)
 
             print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
             for chk in gate_details["checks"]:

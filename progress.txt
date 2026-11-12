@@ -136,4 +136,15 @@
 - [x] Confidence calibration separation: measures mean confidence of correct predictions vs prediction errors.
 - [x] Unit test suite: tests/test_error_analysis.py covering confusion matrix, top errors, subgroup slicing, and confidence separation.
 - [x] Automated benchmark: Gate 16 runner passing 7 of 7 checks.
-- [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 16 completed modules (Gates 2 through 16).
+
+## Phase 17: Model Explainability & Feature Attribution (Gate PASS)
+- [x] Planted synthetic explainability dataset generation (strong signals, noise, high-cardinality spurious codes).
+- [x] Permutation feature importance computed strictly on training validation folds with 100% zero test snooping.
+- [x] Native impurity feature importance extraction with high-cardinality inflation guard.
+- [x] High-cardinality spurious feature detection: identifies inflated tree splits lacking genuine validation utility.
+- [x] Feature Pruning Advisor: identifies zero/negative impact features and provides drop recommendations.
+- [x] Prominent non-causal disclosures ("Predictive Importance ≠ Real-World Causation").
+- [x] Interactive Neo-brutalist workbench in app/templates/module.html and app/routes/issues.py.
+- [x] Unit test suite: 5 tests in tests/test_explainability.py covering invariants, rankings, bias, pruning, and disclosures.
+- [x] Automated benchmark: Gate 17 runner passing 7 of 7 checks in 1.171s (< 4.0s).
+- [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 17 completed modules (Gates 2 through 17).

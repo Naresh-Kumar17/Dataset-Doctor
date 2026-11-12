@@ -162,13 +162,19 @@ class ModelExplainer:
         for col in orig_features:
             cardinality = int(train_df[col].nunique())
             drops: List[float] = []
+            is_numeric = col in prep.numeric_cols
 
             for rep in range(self.n_repeats):
-                val_perm = X_val_raw.copy()
                 rng = np.random.RandomState(self.random_state + rep * 17)
-                val_perm[col] = rng.permutation(val_perm[col].values)
-                X_val_perm_enc = prep.transform(val_perm)
-                preds_perm = model.predict(X_val_perm_enc.values)
+                if is_numeric and col in prep.encoded_columns:
+                    val_perm_enc = X_val_enc.copy()
+                    val_perm_enc[col] = rng.permutation(val_perm_enc[col].values)
+                    preds_perm = model.predict(val_perm_enc.values)
+                else:
+                    val_perm = X_val_raw.copy()
+                    val_perm[col] = rng.permutation(val_perm[col].values)
+                    X_val_shuffled_enc = prep.transform(val_perm)
+                    preds_perm = model.predict(X_val_shuffled_enc.values)
 
                 if scoring_metric == "f1":
                     score_perm = float(f1_score(y_val, preds_perm, average="weighted", zero_division=0))

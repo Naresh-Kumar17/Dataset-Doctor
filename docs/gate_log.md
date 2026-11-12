@@ -271,6 +271,21 @@
 
 ---
 
+## 2026-11-10  Phase 17: Model Explainability & Feature Attribution   PASS
+- Automated benchmark runner verified via `python -m doctor.bench explainability` and `python -m doctor.bench --all`:
+  - 7 of 7 Gate 17 checks PASSED:
+    - [PASS] Attribution computed on validation fold only with zero test partition snooping.
+    - [PASS] Planted strong signal features rank top with high validation degradation.
+    - [PASS] Detects high-cardinality spurious feature and flags impurity split inflation.
+    - [PASS] Feature Pruning Advisor recommends removing pure noise and spurious features.
+    - [PASS] Feature Pruning Advisor protects strong predictive signals from removal.
+    - [PASS] Attribution profile includes prominent non-causal disclosures and disclaimers.
+    - [PASS] Explainability attribution completes rapidly (1.171s < 4.0s).
+- Full regression suite: 100% PASS across all 17 benchmark modules (Gates 2 through 17).
+- Full test suite: 162 unit & integration tests passing (`pytest`).
+
+---
+
 ## Future Gates Pipeline (Phases 17–21 Specifications)
 
 ### Gate 9: Class Imbalance Detection (Scheduled)

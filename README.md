@@ -265,7 +265,7 @@ Every detected data defect triggers an interactive Decision Card displaying meas
 Dataset Doctor is built under a strict test-driven gate discipline. Every module must achieve **100% recall on planted defects and 0 false alarms on clean controls** before advancing.
 
 ```
-Core Progress: [████████████████████░░░░░░] 77% Completed (10 of 13 Core Gates Passed)
+Core Progress: [███████████████████████████] 81% Completed (17 of 21 Gates Passed)
 ```
 
 | Phase | Module / Milestone | Status | Gate Verified | Implementation Details |
@@ -283,7 +283,11 @@ Core Progress: [████████████████████░�
 | **10** | Class Imbalance Advisor & Remediation | 🟢 **PASS** | 2026-11-13 | Train-only resampling (weights, oversample, SMOTE), test set untouched |
 | **11** | Data Leakage Detection | 🟢 **PASS** | 2026-11-05 | Near-perfect single features, target copies, ID leaks, time inversion |
 | **12** | Data Leakage Advisor & Prevention | 🟢 **PASS** | 2026-11-06 | Evidence-based column drop recommendations, time-ordered splits, test row preservation |
-| **13** | End-to-End Pipeline, Report & Clean Export | ⚪ **SCHEDULED** | Scheduled | 10-step causal order verification, before/after compare diff, deployment |
+| **13** | End-to-End Pipeline & Causal Ordering | 🟢 **PASS** | 2026-11-06 | 10-step causal order verification, before/after compare diff, reproduce export |
+| **14** | Unified Data-to-Model Quality Assessment | 🟢 **PASS** | 2026-11-07 | 6-domain risk matrix, 0-100 quality score, training blocker checks |
+| **15** | Multi-Model Experimentation & Comparison | 🟢 **PASS** | 2026-11-08 | 4 model families benchmarked on locked test split, overfitting & accuracy illusion guards |
+| **16** | Model Error Analysis & Diagnostics | 🟢 **PASS** | 2026-11-09 | Exact confusion matrix, top confidence errors, subgroup slicing blind spots |
+| **17** | Model Explainability & Feature Attribution | 🟢 **PASS** | 2026-11-10 | Validation-only permutation importance, high-cardinality inflation guard, feature pruning advisor |
 
 ---
 
@@ -359,7 +363,7 @@ Core Progress: [████████████████████░�
 <td width="33%" valign="top" style="background:#FFF1F2;border:1px solid #FECDD3;padding:12px;border-radius:8px;">
 
 #### 🧠 Phase 17: Permutation Attribution
-<span style="background:#E11D48;color:#FFF;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;">🟣 ROADMAP</span>
+<span style="background:#10B981;color:#FFF;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;">🟢 GATE PASSED</span>
 - **Leak-Free Attribution**: Permutation importance calculated on validation folds only.
 - **Non-Causal Disclosure**: Explains predictive importance without claiming real-world causality.
 - **Feature Pruning Advisor**: Recommends removing noisy zero-importance features.

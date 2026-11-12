@@ -12,7 +12,7 @@ def test_registry_lists_all_planned_modules():
     for exp in expected:
         assert exp in module_ids
 
-    # All 16 modules are gate_passed
+    # All completed modules are gate_passed
     completed = [
         "nulls",
         "split_eval",
@@ -29,6 +29,7 @@ def test_registry_lists_all_planned_modules():
         "quality_assessment",
         "multi_model",
         "error_analysis",
+        "explainability",
     ]
     for m in modules:
         if m.id in completed:

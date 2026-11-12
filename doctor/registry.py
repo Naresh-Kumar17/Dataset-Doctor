@@ -128,6 +128,13 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
         description="Confusion matrix rates, top confidence errors, subgroup slicing blind spots, and calibration.",
         status="gate_passed",
     ),
+    "explainability": ModuleInfo(
+        id="explainability",
+        name="Model Explainability & Feature Attribution",
+        phase=17,
+        description="Validation-fold permutation importance, non-causal disclosures, and feature pruning advisor.",
+        status="gate_passed",
+    ),
 }
 
 
