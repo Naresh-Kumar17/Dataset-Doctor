@@ -118,4 +118,30 @@
 - Full project test suite: 15 unit tests in `tests/issues/test_types.py` and 2 integration tests in `tests/test_web_routes.py` passing cleanly.
 - Neo-brutalist interactive types workbench integrated into `/module/types` with status chips, ambiguous date alert banner with Day-First and Month-First buttons, type anomaly table, and quick action conversion buttons.
 
+## 2026-11-07  Phase 7: Outlier Detection   PASS
+- Automated benchmark runner verified via `python -m doctor.bench outliers` and `python -m doctor.bench --all`:
+  - 8 of 8 Gate 7 checks PASSED:
+    - [PASS] All 10 planted impossible values found with severity=high (age < 0 or > 120).
+    - [PASS] Planted unit mix-up found and flagged with severity=medium (170,000 cm magnitude jump).
+    - [PASS] All 20 extreme-but-real values detected as medium/low tail outliers.
+    - [PASS] Heavily skewed clean column flags <= 5% as outliers (measured: 1.3%).
+    - [PASS] Clean normal Gaussian column stays under 1% flagged (measured: 0.0%).
+    - [PASS] 0 outlier flags on binary, categorical, ID, or target columns.
+    - [PASS] 0 false alarms on clean_control.csv.
+    - [PASS] Plain-English explanation explicitly warns about skewness and IQR distortion.
+- Full Phase 7 unit tests: 12 tests passed in `tests/issues/test_outliers.py`.
+- Neo-brutalist interactive outliers detection workbench integrated into `/module/outliers` with stat cards for Impossible Values, Unit Errors, Tail Extremes, and Total Anomalies.
 
+## 2026-11-12  Phase 8: Outlier Advisor & Fixer (Interactive)   PASS
+- Automated benchmark runner verified via `python -m doctor.bench outliers_advisor` and `python -m doctor.bench --all`:
+  - 7 of 7 Gate 8 checks PASSED:
+    - [PASS] Impossible values are recommended as set_to_null (non-negotiable domain rule).
+    - [PASS] Rare-class protection: leave is recommended when dropping extremes removes minority cases.
+    - [PASS] Simplicity tie-breaker: recommends leave when CV score differences are within noise.
+    - [PASS] Clipping bounds learned strictly from train and applied identically to test.
+    - [PASS] Gate 8: Test set row count is strictly preserved (0 test rows dropped).
+    - [PASS] Decision log persists and exported reproduce.py code rebuilds identical clean dataset.
+    - [PASS] User override successfully alters applied remediation to log_transform.
+- Full project test suite: 12 unit tests in `tests/issues/test_outliers.py`, integration tests in `tests/test_web_routes.py` and `tests/test_decide_routes.py`.
+- RemediationPipeline and `reproduce.py` code generator updated with `set_to_null`, `clip_iqr`, `clip_percentile`, `log_transform`, and `drop_rows` transformations.
+- Complete regression suite: 100% PASS across all 7 benchmark modules.
