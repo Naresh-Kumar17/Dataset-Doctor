@@ -17,6 +17,7 @@ from doctor.issues.nulls.fix import NullFixer
 from doctor.issues.duplicates.fix import DuplicateFixer
 from doctor.issues.types.fix import TypeFixer
 from doctor.issues.outliers.fix import OutlierFixer
+from doctor.issues.imbalance.fix import ImbalanceFixer
 
 
 @dataclass
@@ -42,6 +43,7 @@ class RemediationPipeline:
         self._duplicate_fixer = DuplicateFixer()
         self._type_fixer = TypeFixer()
         self._outlier_fixer = OutlierFixer()
+        self._imbalance_fixer = ImbalanceFixer()
 
     def record_decision(self, decision: Decision, train_df: Optional[pd.DataFrame] = None) -> PipelineStep:
         """
@@ -58,6 +60,8 @@ class RemediationPipeline:
                 fitted = self._type_fixer.fit(train_df, decision)
             elif decision.issue_id == "outliers" or decision.issue_id.startswith("outlier"):
                 fitted = self._outlier_fixer.fit(train_df, decision)
+            elif decision.issue_id == "imbalance" or decision.issue_id.startswith("imbalance"):
+                fitted = self._imbalance_fixer.fit(train_df, decision)
 
         step = PipelineStep(
             step_id=f"step_{len(self.steps) + 1}",
@@ -94,6 +98,15 @@ class RemediationPipeline:
                         decided_by=step.decided_by,
                     )
                     df_curr = self._outlier_fixer.transform(df_curr, temp_dec, step.fitted_params, is_test=is_test)
+                elif step.issue_id == "imbalance" or step.issue_id.startswith("imbalance"):
+                    temp_dec = Decision(
+                        issue_id=step.issue_id,
+                        column=step.column,
+                        option_id=step.option_id,
+                        params=step.fitted_params,
+                        decided_by=step.decided_by,
+                    )
+                    df_curr = self._imbalance_fixer.transform(df_curr, temp_dec, step.fitted_params, is_test=is_test)
         return df_curr
 
     def get_decision_log(self) -> List[Dict[str, Any]]:
@@ -261,6 +274,37 @@ class RemediationPipeline:
                 lines.append('    if not is_test:')
                 lines.append(f'        if {repr(col)} in data.columns:')
                 lines.append(f'            data = data[(data[{repr(col)}] >= {lower}) & (data[{repr(col)}] <= {upper})].copy()')
+
+            elif opt == "random_oversample":
+                lines.append('    if not is_test:')
+                lines.append(f'        if {repr(col)} in data.columns:')
+                lines.append(f'            max_c = data[{repr(col)}].value_counts().max()')
+                lines.append(f'            dfs = [grp.sample(max_c, replace=True, random_state=42) for _, grp in data.groupby({repr(col)})]')
+                lines.append('            data = pd.concat(dfs, ignore_index=True)')
+
+            elif opt == "random_undersample":
+                lines.append('    if not is_test:')
+                lines.append(f'        if {repr(col)} in data.columns:')
+                lines.append(f'            min_c = data[{repr(col)}].value_counts().min()')
+                lines.append(f'            dfs = [grp.sample(min_c, replace=False, random_state=42) for _, grp in data.groupby({repr(col)})]')
+                lines.append('            data = pd.concat(dfs, ignore_index=True)')
+
+            elif opt == "class_weight":
+                lines.append(f'    # Model-level: class_weight="balanced" applied to classifier when training on {repr(col)}')
+
+            elif opt == "smote":
+                lines.append('    if not is_test:')
+                lines.append(f'        if {repr(col)} in data.columns:')
+                lines.append('            from imblearn.over_sampling import SMOTE')
+                lines.append(f'            _X = data.drop(columns=[{repr(col)}])')
+                lines.append(f'            _y = data[{repr(col)}]')
+                lines.append('            _sm = SMOTE(random_state=42)')
+                lines.append('            _X_res, _y_res = _sm.fit_resample(_X, _y)')
+                lines.append('            data = pd.DataFrame(_X_res, columns=_X.columns)')
+                lines.append(f'            data[{repr(col)}] = _y_res')
+
+            elif opt in ("threshold_tuning", "leave"):
+                lines.append(f'    # Strategy "{opt}" on {repr(col)} preserves natural data distribution.')
 
             lines.append('')
 
