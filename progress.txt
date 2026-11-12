@@ -31,3 +31,23 @@
 - [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 5 completed modules.
 - [x] Architecture documentation, gate log update, and commit scheduling.
 
+## Phase 7: Outlier Detection (Gate PASS)
+- [x] Synthetic planted dataset generation: 10 impossible values (-5, -12, 145, 210, 999), 1 unit mix-up (170,000 cm), 20 extreme-but-real values, and clean skewed/normal controls.
+- [x] Core outliers issue package and public exports (OutlierDetector, OutlierAdvisor, OutlierFixer, explainers, badges).
+- [x] OutlierDetector implementation: domain boundary rules (age < 0 or > 120, pct > 100, non-negative quantities), order-of-magnitude unit error detection, robust Median Absolute Deviation (MAD), and IQR tail bounds.
+- [x] Categorical and binary guard: strictly 0 outlier flags on binary, categorical, ID, or target features.
+- [x] Plain-English explanations & badge formatters: contextual warnings for skewed distributions and sample anomaly reporting.
+- [x] UI Module View: Neo-brutalist outliers workbench, critical impossible values alert banner, and distribution context cards.
+- [x] Automated benchmark: Gate 7 runner passing 8 of 8 checks with 0 false alarms on clean control.
+
+## Phase 8: Outlier Advisor & Fixer (Gate PASS)
+- [x] OutlierAdvisor implementation: rule-based shortlists, rare-class extreme protection, simplicity tie-breaker, and 5-fold cross-validated measurement on train only.
+- [x] OutlierFixer implementation: set_to_null, clip_iqr, clip_percentile, log_transform, drop_rows, and leave.
+- [x] Strict test partition preservation: learned clipping bounds derive strictly from train; test set row count is strictly preserved (0 test rows dropped).
+- [x] RemediationPipeline integration: sequential fit/transform, decision logging, and standalone reproduce.py export.
+- [x] Web API endpoints: POST /decide/outliers/apply with session decision tracking.
+- [x] Interactive UI decision controls: 1-click remediation actions for impossible values (set_to_null), unit errors (clip_percentile/set_to_null), and extreme tails (leave/clip/log).
+- [x] Unit test suite: 12 unit tests in tests/issues/test_outliers.py covering detection, advice, fixing, test set preservation, and reproduce script execution.
+- [x] Integration test suite: Web routes and decision apply API tests in tests/test_web_routes.py and tests/test_decide_routes.py.
+- [x] Automated benchmark: Gate 8 runner passing 7 of 7 checks.
+- [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 7 completed modules.
