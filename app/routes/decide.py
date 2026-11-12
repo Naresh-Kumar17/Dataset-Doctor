@@ -502,6 +502,59 @@ def apply_outlier_decision(req: ApplyOutlierDecisionRequest, request: Request):
     }
 
 
+class ApplyImbalanceDecisionRequest(BaseModel):
+    column: str
+    option_id: str
+    params: Optional[Dict[str, Any]] = None
+    decided_by: Optional[str] = "user"
+
+
+@router.post("/imbalance/apply")
+def apply_imbalance_decision(req: ApplyImbalanceDecisionRequest, request: Request):
+    """
+    Applies class imbalance remediation (class_weight, random_oversample, random_undersample, smote, leave).
+    """
+    df, target_col, _, session = _get_active_df_and_target(request, column=req.column)
+    from doctor.issues.imbalance.fix import ImbalanceFixer
+    fixer = ImbalanceFixer()
+    params = req.params or {}
+
+    clean_decided_by = sanitize_text_input(req.decided_by or "user", 50)
+    decision = Decision(
+        issue_id="imbalance",
+        column=req.column,
+        option_id=req.option_id,
+        params=params,
+        decided_by=clean_decided_by,
+    )
+    fitted = fixer.fit(df, decision)
+    df_transformed = fixer.transform(df, decision, fitted, is_test=False)
+
+    rows_before = len(df)
+    rows_after = len(df_transformed)
+    rows_delta = rows_after - rows_before
+
+    if session:
+        session.df = df_transformed
+        session.decisions.append({
+            "issue_id": "imbalance",
+            "column": req.column,
+            "option_id": req.option_id,
+            "params": params,
+            "decided_by": req.decided_by or "user",
+            "fitted_params": fitted,
+        })
+
+    return {
+        "status": "success",
+        "column": req.column,
+        "applied_option": req.option_id,
+        "rows_delta": rows_delta,
+        "fitted_params": fitted,
+        "message": f"Successfully applied '{req.option_id}' to target column '{req.column}'.",
+    }
+
+
 @router.get("/export")
 def export_reproduce_pipeline(request: Request):
     """
