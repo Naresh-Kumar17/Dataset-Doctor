@@ -1624,6 +1624,148 @@
       {% endif %}
     {% endif %}
 
+  {% elif module.id == 'explainability' %}
+    <!-- Phase 17: Model Explainability & Feature Attribution Workbench -->
+    {% if attribution_profile %}
+      <!-- Non-Causal Disclosure Banner -->
+      <div class="banner warning" style="margin-bottom: 24px; border-left: 8px solid var(--orange); background: #fffcf0;">
+        <div style="font-weight: 800; font-size: 15px; margin-bottom: 6px; color: #b45309;">
+          ⚠️ PREDICTIVE IMPORTANCE ≠ REAL-WORLD CAUSATION
+        </div>
+        <div style="font-size: 13px; line-height: 1.5; color: #333;">
+          {{ attribution_profile.non_causal_disclosure }}
+        </div>
+      </div>
+
+      <!-- High Cardinality Inflation Warnings -->
+      {% if attribution_profile.high_cardinality_warnings %}
+        <div class="banner danger" style="margin-bottom: 24px; border-left: 8px solid #b00020; background: #fff5f5;">
+          <div style="font-weight: 800; font-size: 15px; margin-bottom: 6px; color: #b00020;">
+            🚨 HIGH-CARDINALITY IMPURITY INFLATION DETECTED
+          </div>
+          {% for w in attribution_profile.high_cardinality_warnings %}
+            <div style="font-size: 13px; margin-top: 4px; color: #444;">• {{ w }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <!-- Stat Grid -->
+      <div class="stat-grid" style="margin-bottom: 24px;">
+        <div class="stat-card" style="border-left: 6px solid var(--ink);">
+          <div class="stat-label">FEATURES ANALYZED</div>
+          <div class="stat-val">{{ attribution_profile.features|length }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Evaluated via 5x shuffle repeats</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--green);">
+          <div class="stat-label">STRONG PREDICTORS</div>
+          <div class="stat-val" style="color: #007a3d;">
+            {% set strong_count = attribution_profile.features | selectattr('category', 'equalto', 'strong') | list | length %}
+            {{ strong_count }}
+          </div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Drop &gt; 2.0% on validation folds</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--pink);">
+          <div class="stat-label">RECOMMENDED FOR PRUNING</div>
+          <div class="stat-val" style="color: #b00020;">{{ attribution_profile.features_to_prune|length }}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">Zero / negative / spurious signal</div>
+        </div>
+
+        <div class="stat-card" style="border-left: 6px solid var(--blue);">
+          <div class="stat-label">BASELINE VALIDATION SCORE</div>
+          <div class="stat-val" style="font-size: 20px; font-weight: 900;">
+            {{ "%.1f"|format(attribution_profile.baseline_validation_score * 100) }}%
+          </div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">{{ attribution_profile.metric_used|replace("_", " ")|upper }}</div>
+        </div>
+      </div>
+
+      <!-- Feature Attribution Leaderboard Table -->
+      <div class="card" style="margin-bottom: 24px;">
+        <h3 class="card-title">VALIDATION PERMUTATION IMPORTANCE VS NATIVE IMPURITY</h3>
+        <p style="font-size: 13px; color: #555; margin-top: 4px; margin-bottom: 16px;">
+          Permutation importance drops measure true model reliance on holdout validation folds without test set snooping. Native impurity importance is shown alongside to expose high-cardinality bias.
+        </p>
+
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+            <thead>
+              <tr style="border-bottom: 3px solid #000; background: #fafafa;">
+                <th style="padding: 10px;">FEATURE</th>
+                <th style="padding: 10px;">PERMUTATION IMPACT (DROP)</th>
+                <th style="padding: 10px;">NATIVE IMPURITY</th>
+                <th style="padding: 10px;">CARDINALITY</th>
+                <th style="padding: 10px;">CATEGORY</th>
+                <th style="padding: 10px;">PRUNING ADVICE</th>
+                <th style="padding: 10px;">EXPLANATION</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in attribution_profile.features %}
+                <tr style="border-bottom: 1px solid #ddd; {% if f.has_cardinality_bias %}background: #fff5f5;{% elif f.category == 'strong' %}background: #f0fff4;{% endif %}">
+                  <td style="padding: 10px; font-weight: 700; font-family: monospace;">{{ f.feature }}</td>
+                  <td style="padding: 10px; font-family: monospace; font-weight: 800;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span>{{ "%+.2f"|format(f.permutation_mean * 100) }}%</span>
+                      <span style="font-size: 11px; color: #888;">(±{{ "%.2f"|format(f.permutation_std * 100) }}%)</span>
+                    </div>
+                  </td>
+                  <td style="padding: 10px; font-family: monospace;">
+                    {{ "%.1f"|format(f.native_importance * 100) }}%
+                    {% if f.has_cardinality_bias %}
+                      <span class="chip high" style="font-size: 10px; margin-left: 4px;">INFLATED</span>
+                    {% endif %}
+                  </td>
+                  <td style="padding: 10px; font-family: monospace;">{{ f.cardinality }}</td>
+                  <td style="padding: 10px;">
+                    {% if f.category == 'strong' %}
+                      <span class="chip pass" style="font-size: 11px;">STRONG DRIVER</span>
+                    {% elif f.category == 'moderate' %}
+                      <span class="chip" style="font-size: 11px; background: #e0f2fe; border: 1px solid #0284c7;">MODERATE</span>
+                    {% else %}
+                      <span class="chip high" style="font-size: 11px;">NOISE / SPURIOUS</span>
+                    {% endif %}
+                  </td>
+                  <td style="padding: 10px;">
+                    {% if f.feature in attribution_profile.features_to_prune %}
+                      <span class="badge high">✂️ PRUNE</span>
+                    {% else %}
+                      <span class="badge low">✅ RETAIN</span>
+                    {% endif %}
+                  </td>
+                  <td style="padding: 10px; font-size: 12px; color: #444; max-width: 320px;">
+                    {{ f.plain_english_reason }}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Feature Pruning Advisor Action Card -->
+      {% if attribution_profile.features_to_prune %}
+        <div class="card" style="margin-bottom: 24px; border: 2px solid #000; background: #fafafa;">
+          <h3 class="card-title" style="margin-bottom: 8px;">✂️ FEATURE PRUNING ADVISOR RECOMMENDATIONS</h3>
+          <p style="font-size: 13px; color: #555; margin-bottom: 14px;">
+            The following {{ attribution_profile.features_to_prune|length }} feature(s) provide zero or negative out-of-fold predictive utility. Pruning these features will streamline model inference, avoid high-cardinality split traps, and prevent overfitting:
+          </p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
+            {% for pf in attribution_profile.features_to_prune %}
+              <span class="chip high" style="font-size: 13px; font-family: monospace; padding: 6px 12px;">
+                {{ pf }}
+              </span>
+            {% endfor %}
+          </div>
+          <div style="background: #222; color: #a3e635; padding: 12px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+            # Clean feature space by dropping uninformative features<br>
+            clean_df = df.drop(columns={{ attribution_profile.features_to_prune }})
+          </div>
+        </div>
+      {% endif %}
+    {% endif %}
+
   {% else %}
     <!-- Module Not Built Placeholder for future phases -->
     <div class="card">

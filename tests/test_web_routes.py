@@ -352,3 +352,12 @@ def test_error_analysis_module_page(auth_client):
     assert "Error Analysis" in response.text
     assert "TRUE POSITIVES" in response.text
     assert "FALSE POSITIVES" in response.text
+
+
+def test_explainability_module_page(auth_client):
+    response = auth_client.get("/module/explainability")
+    assert response.status_code == 200
+    assert "Explainability" in response.text
+    assert "PREDICTIVE IMPORTANCE ≠ REAL-WORLD CAUSATION" in response.text
+    assert "VALIDATION PERMUTATION IMPORTANCE VS NATIVE IMPURITY" in response.text
+    assert "FEATURE PRUNING ADVISOR RECOMMENDATIONS" in response.text

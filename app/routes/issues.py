@@ -24,6 +24,7 @@ SAMPLE_OUTLIERS = Path(__file__).resolve().parent.parent.parent / "data" / "plan
 SAMPLE_IMBALANCE = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "imbalance.csv"
 SAMPLE_LEAKAGE = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "leakage.csv"
 SAMPLE_PIPELINE = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "pipeline.csv"
+SAMPLE_EXPLAINABILITY = Path(__file__).resolve().parent.parent.parent / "data" / "planted" / "explainability.csv"
 
 
 @router.get("/module/{module_id}", response_class=HTMLResponse)
@@ -167,6 +168,19 @@ def get_module_page(module_id: str, request: Request):
                 session.metadata = {"filename": "imbalance.csv (Sample Preview)"}
         except Exception:
             df = None
+    elif module_id == "explainability" and SAMPLE_EXPLAINABILITY.exists():
+        try:
+            df, _ = load_csv(str(SAMPLE_EXPLAINABILITY), filename="explainability.csv (Sample Preview)")
+            active_filename = active_filename or "explainability.csv (Sample Preview)"
+            target_col = "target"
+            task_type = "classification"
+            if session:
+                session.df = df
+                session.target_column = target_col
+                session.task_type = task_type
+                session.metadata = {"filename": "explainability.csv (Sample Preview)"}
+        except Exception:
+            df = None
     elif SAMPLE_ACCIDENT.exists():
         # Fallback to accident dataset for preview
         try:
@@ -188,6 +202,7 @@ def get_module_page(module_id: str, request: Request):
     quality_report = None
     experiment_result = None
     error_profile = None
+    attribution_profile = None
 
     if module_id in ("nulls", "nulls_advisor") and df is not None:
         from doctor.issues.nulls.advise import NullAdvisor
@@ -455,6 +470,17 @@ def get_module_page(module_id: str, request: Request):
         except Exception:
             error_profile = None
 
+    elif module_id == "explainability" and df is not None:
+        try:
+            from doctor.explainability import ModelExplainer
+            explainer = ModelExplainer(n_repeats=5, random_state=42)
+            n_train = int(len(df) * 0.8)
+            tr = df.iloc[:n_train].copy()
+            target = target_col or "target"
+            attribution_profile = explainer.explain(tr, target_column=target)
+        except Exception:
+            attribution_profile = None
+
     def badge_formatter(evidence: dict) -> str:
         kind = evidence.get("kind", "")
         subtype = evidence.get("subtype", "")
@@ -504,6 +530,7 @@ def get_module_page(module_id: str, request: Request):
             "quality_report": quality_report,
             "experiment_result": experiment_result,
             "error_profile": error_profile,
+            "attribution_profile": attribution_profile,
             "target_col": target_col,
             "has_data": df is not None,
             "format_badge": badge_formatter,
