@@ -118,3 +118,20 @@ def test_decide_export_cleaned_csv_no_dataset(auth_client, monkeypatch):
 
 
 
+
+
+
+def test_decide_imbalance_apply(auth_client):
+    from pathlib import Path
+    imbalance_csv = Path(__file__).resolve().parent.parent / "data" / "planted" / "imbalance.csv"
+    with open(imbalance_csv, "rb") as f:
+        auth_client.post("/upload", files={"file": ("imbalance.csv", f, "text/csv")})
+
+    res = auth_client.post(
+        "/decide/imbalance/apply",
+        json={"column": "target_90_10", "option_id": "random_oversample", "params": {}},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert data["applied_option"] == "random_oversample"

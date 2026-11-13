@@ -263,3 +263,32 @@ def test_outliers_apply_route(auth_client):
 
 
 
+
+
+
+def test_imbalance_module_page(auth_client):
+    response = auth_client.get("/module/imbalance")
+    assert response.status_code == 200
+    assert "Imbalance" in response.text
+    assert "CLASS IMBALANCE DIAGNOSTICS & REMEDIATION" in response.text
+    assert "ACCURACY ILLUSION" in response.text
+
+
+def test_imbalance_apply_route(auth_client):
+    from pathlib import Path
+    imbalance_csv = Path(__file__).resolve().parent.parent / "data" / "planted" / "imbalance.csv"
+    with open(imbalance_csv, "rb") as f:
+        auth_client.post(
+            "/upload",
+            files={"file": ("imbalance.csv", f, "text/csv")},
+            follow_redirects=False,
+        )
+    resp = auth_client.post(
+        "/decide/imbalance/apply",
+        json={"column": "target_90_10", "option_id": "class_weight", "params": {}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert data["column"] == "target_90_10"
+    assert data["applied_option"] == "class_weight"
