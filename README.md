@@ -14,8 +14,8 @@
 ### *The Data-to-Model Quality, ML Reliability & Leak-Free Remediation Platform*
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live%20on%20Render-00E599?style=for-the-badge&logo=render&logoColor=000)](https://dataset-doctor-8c7b.onrender.com/)
-[![Gate 8 PASS](https://img.shields.io/badge/Gate%208-PASS%20(8%2F8)-7CFFB2?style=for-the-badge&logo=checkmarx&logoColor=000)](docs/gate_log.md)
-[![Test Suite](https://img.shields.io/badge/Tests-117%20Passed-FFD93D?style=for-the-badge&logo=pytest&logoColor=000)](tests/)
+[![Gate 10 PASS](https://img.shields.io/badge/Gate%2010-PASS%20(10%2F10)-7CFFB2?style=for-the-badge&logo=checkmarx&logoColor=000)](docs/gate_log.md)
+[![Test Suite](https://img.shields.io/badge/Tests-130%20Passed-FFD93D?style=for-the-badge&logo=pytest&logoColor=000)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.14-6BCBFF?style=for-the-badge&logo=python&logoColor=000)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-B197FC?style=for-the-badge)](LICENSE)
 [![Privacy First](https://img.shields.io/badge/Privacy-100%25%20Local%20First-FF6B9D?style=for-the-badge)](docs/authentication%20and%20security.md)
@@ -265,7 +265,7 @@ Every detected data defect triggers an interactive Decision Card displaying meas
 Dataset Doctor is built under a strict test-driven gate discipline. Every module must achieve **100% recall on planted defects and 0 false alarms on clean controls** before advancing.
 
 ```
-Core Progress: [████████████████░░░░░░░░░░] 62% Completed (8 of 13 Core Gates Passed)
+Core Progress: [████████████████████░░░░░░] 77% Completed (10 of 13 Core Gates Passed)
 ```
 
 | Phase | Module / Milestone | Status | Gate Verified | Implementation Details |
@@ -279,8 +279,8 @@ Core Progress: [████████████████░░░░░�
 | **6** | Data Types Detection & Remediation | 🟢 **PASS** | 2026-11-02 | Text numbers, ambiguous dates with user disambiguation, booleans |
 | **7** | Outlier Detection | 🟢 **PASS** | 2026-11-07 | 10 impossible values, unit mix-ups, robust MAD skew guard, 0 control flags |
 | **8** | Outlier Advisor & Fixer | 🟢 **PASS** | 2026-11-12 | Rare-class extreme protection, train bounds clipping, test row preservation |
-| **9** | Class Imbalance Detection & Diagnosis | 🟡 **IN PROGRESS** | Active Sprint | Imbalance ratios, minority share, real-world prevalence prompt |
-| **10** | Class Imbalance Advisor & Remediation | ⚪ **SCHEDULED** | Scheduled | Train-only resampling (weights, oversample, SMOTE), test set untouched |
+| **9** | Class Imbalance Detection & Diagnosis | 🟢 **PASS** | 2026-11-10 | Imbalance ratios, minority share, accuracy paradox, real-world prevalence prompt |
+| **10** | Class Imbalance Advisor & Remediation | 🟢 **PASS** | 2026-11-13 | Train-only resampling (weights, oversample, SMOTE), test set untouched |
 | **11** | Data Leakage Detection | ⚪ **SCHEDULED** | Scheduled | Near-perfect single features, target copies, ID leaks, time inversion |
 | **12** | Data Leakage Advisor & Prevention | ⚪ **SCHEDULED** | Scheduled | Evidence-based column drop recommendations, time-ordered splits |
 | **13** | End-to-End Pipeline, Report & Clean Export | ⚪ **SCHEDULED** | Scheduled | 10-step causal order verification, before/after compare diff, deployment |
@@ -583,7 +583,7 @@ To demonstrate why Dataset Doctor's **"Split First, Protect Test Always"** princ
 Every module is continuously validated against deterministic planted datasets where ground-truth defects are known:
 
 ```bash
-# Run all completed benchmark gates (Gates 2 through 8)
+# Run all completed benchmark gates (Gates 2 through 10)
 python -m doctor.bench --all
 
 # Run specific module benchmark gates
@@ -594,8 +594,10 @@ python -m doctor.bench duplicates         # Gate 5: Exact, near & conflicting de
 python -m doctor.bench types              # Gate 6: Text numbers, ambiguous dates & booleans
 python -m doctor.bench outliers           # Gate 7: Impossible values & robust MAD
 python -m doctor.bench outliers_advisor   # Gate 8: Outlier clipping & test row preservation
+python -m doctor.bench imbalance          # Gate 9: Imbalance ratio & accuracy paradox
+python -m doctor.bench imbalance_advisor  # Gate 10: Honest resampling & test preservation
 
-# Run full pytest test suite (117 tests passing)
+# Run full pytest test suite (130 tests passing)
 pytest tests/
 ```
 

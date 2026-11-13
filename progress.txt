@@ -51,3 +51,27 @@
 - [x] Integration test suite: Web routes and decision apply API tests in tests/test_web_routes.py and tests/test_decide_routes.py.
 - [x] Automated benchmark: Gate 8 runner passing 7 of 7 checks.
 - [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 7 completed modules.
+
+
+## Phase 9: Class Imbalance Detection (Gate PASS)
+- [x] Synthetic planted dataset generation: 90/10 target, 99/1 target, multiclass target (70/25/5), and 50/50 balanced control.
+- [x] Core imbalance issue package and public exports (ImbalanceDetector, ImbalanceAdvisor, ImbalanceFixer, explainers, badges).
+- [x] ImbalanceDetector implementation: minority class share, imbalance ratio, multiclass analysis, and quiet on balanced targets (>= 20%).
+- [x] Accuracy paradox warning: explicitly flags deceptive high accuracy on majority class.
+- [x] Real-world prevalence prompt: asks whether sample matches true real-world rate.
+- [x] Plain-English explanations & badge formatters: markdown explanations and Neo-brutalist severity chips.
+- [x] UI Module View: Neo-brutalist imbalance workbench, severe/moderate summary cards, and prevalence audit card.
+- [x] Automated benchmark: Gate 9 runner passing 8 of 8 checks with 0 false alarms on clean control.
+
+## Phase 10: Class Imbalance Advisor & Fixer (Gate PASS)
+- [x] ImbalanceAdvisor implementation: 5-fold Stratified CV on training partition only, trade-off reporting across recall, precision, and F1.
+- [x] ImbalanceFixer implementation: class_weight, random_oversample, random_undersample, smote, and leave.
+- [x] Strict test partition preservation: learned resampling is strictly train-only; test partition row count and class ratio are 100% preserved (0 test rows resampled/dropped).
+- [x] SMOTE safety guard: refuses unencoded non-numeric/categorical features with clear error.
+- [x] RemediationPipeline integration: sequential fit/transform, decision logging, and standalone reproduce.py export.
+- [x] Web API endpoints: POST /decide/imbalance/apply with session decision tracking.
+- [x] Interactive UI decision controls: 1-click remediation actions for Class Weights, Oversample Train Only, SMOTE, Undersample, and Leave.
+- [x] Unit test suite: 10 unit tests in tests/issues/test_imbalance.py covering detection, advice, fixing, test set preservation, SMOTE guard, and reproduce code execution.
+- [x] Integration test suite: Web routes and decision apply API tests in tests/test_web_routes.py and tests/test_decide_routes.py.
+- [x] Automated benchmark: Gate 10 runner passing 9 of 9 checks.
+- [x] Full regression benchmark: python -m doctor.bench --all passing 100% across all 9 completed modules (Gates 2 through 10).
