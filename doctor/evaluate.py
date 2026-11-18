@@ -340,3 +340,7 @@ def is_significant(
         return True, "improved"
     else:
         return True, "degraded"
+
+
+# Alias for programmatic SDK
+evaluate_model = evaluate_split

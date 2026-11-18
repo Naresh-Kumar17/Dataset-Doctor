@@ -17,6 +17,14 @@ from sklearn.model_selection import train_test_split
 
 
 @dataclass
+class SplitConfig:
+    """Configuration options for dataset splitting."""
+    test_size: float = 0.2
+    random_state: int = 42
+    stratify: bool = True
+
+
+@dataclass
 class DataSplit:
     """Encapsulates the locked partition of a dataset into train and test sets."""
     train_df: pd.DataFrame
@@ -65,6 +73,7 @@ def split_dataset(
     task_type: Optional[str] = None,
     test_size: float = 0.2,
     random_seed: int = 42,
+    config: Optional[SplitConfig] = None,
 ) -> DataSplit:
     """
     Splits a DataFrame into train and test partitions.
@@ -75,10 +84,14 @@ def split_dataset(
     - task_type: "classification" or "regression" (auto-inferred if None)
     - test_size: Fraction of data reserved for test set (default 0.2 = 80/20)
     - random_seed: Random seed for deterministic reproducibility
+    - config: Optional SplitConfig dataclass instance
     
     Returns:
     - DataSplit dataclass containing train_df, test_df, indices, and distributions.
     """
+    if config is not None:
+        test_size = config.test_size
+        random_seed = config.random_state
     if target not in df.columns:
         raise ValueError(f"Target column '{target}' not found in dataframe columns: {list(df.columns)}")
     

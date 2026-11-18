@@ -57,6 +57,19 @@ class QualityAssessment:
             return False, "Model training paused: Significant unaddressed data anomalies remain."
         return True, "Dataset passes all quality checks. Ready for leak-free model training."
 
+    @property
+    def quality_score(self) -> int:
+        return self.overall_score
+
+    @property
+    def can_train(self) -> bool:
+        can, _ = self.can_train_model()
+        return can
+
+    @property
+    def blocker_reasons(self) -> List[str]:
+        return self.critical_blockers
+
 
 class DataQualityAssessor:
     """

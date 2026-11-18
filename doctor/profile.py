@@ -3,9 +3,36 @@ Dataset Profiler for Dataset Doctor.
 Computes lightweight, comprehensive summary stats, memory footprint,
 column data types, sample values, and target suggestions.
 """
-from typing import Any, Dict, List
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
+
+
+@dataclass
+class ColumnProfile:
+    name: str
+    dtype: str
+    inferred_type: str
+    unique_count: int
+    null_count: int
+    null_pct: float
+    sample_values: List[str]
+
+
+@dataclass
+class DatasetProfile:
+    n_rows: int
+    n_cols: int
+    memory_usage_mb: float
+    memory_display: str
+    columns_with_missing: int
+    total_null_cells: int
+    null_cell_pct: float
+    columns: List[ColumnProfile]
+    target_column: Optional[str]
+    task_type: Optional[str]
+    minority_share: Optional[float] = None
 
 
 def format_memory_size(bytes_val: int) -> str:
@@ -141,3 +168,56 @@ def profile_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
         "suggested_target": suggested_target,
         "suggested_task_type": suggested_task_type,
     }
+
+
+def profile_dataset(df: pd.DataFrame, target_column: Optional[str] = None) -> DatasetProfile:
+    """
+    Returns a typed DatasetProfile dataclass for the given DataFrame.
+    """
+    raw_prof = profile_dataframe(df)
+    n_rows = raw_prof["n_rows"]
+    n_cols = raw_prof["n_columns"]
+    mem_mb = raw_prof["memory_bytes"] / (1024 * 1024)
+
+    total_null_cells = sum(c["null_count"] for c in raw_prof["columns"])
+    total_cells = max(1, n_rows * n_cols)
+    null_cell_pct = float(total_null_cells / total_cells)
+
+    columns = [
+        ColumnProfile(
+            name=c["name"],
+            dtype=c["dtype"],
+            inferred_type=c["inferred_type"],
+            unique_count=c["unique_count"],
+            null_count=c["null_count"],
+            null_pct=c["null_percent"],
+            sample_values=c["sample_values"],
+        )
+        for c in raw_prof["columns"]
+    ]
+
+    target = target_column or raw_prof["suggested_target"]
+    task_type = raw_prof["suggested_task_type"]
+    minority_share = None
+
+    if target and target in df.columns:
+        s = df[target].dropna()
+        if s.nunique() == 2 or task_type == "classification":
+            val_counts = s.value_counts(normalize=True)
+            if len(val_counts) > 0:
+                minority_share = float(val_counts.min())
+
+    return DatasetProfile(
+        n_rows=n_rows,
+        n_cols=n_cols,
+        memory_usage_mb=mem_mb,
+        memory_display=raw_prof["memory_display"],
+        columns_with_missing=raw_prof["columns_with_missing"],
+        total_null_cells=total_null_cells,
+        null_cell_pct=null_cell_pct,
+        columns=columns,
+        target_column=target,
+        task_type=task_type,
+        minority_share=minority_share,
+    )
+

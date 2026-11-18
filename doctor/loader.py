@@ -3,6 +3,7 @@ Robust CSV loader for Dataset Doctor.
 Handles encoding detection, 50MB file size limits, keep_default_na=False,
 and returns clear, user-friendly errors on invalid or malformed files.
 """
+from dataclasses import dataclass
 from io import BytesIO, StringIO
 import os
 from typing import BinaryIO, Tuple
@@ -12,6 +13,12 @@ import pandas as pd
 DEFAULT_MAX_FILE_SIZE_MB = 50
 MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", str(DEFAULT_MAX_FILE_SIZE_MB)))
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024  # Default 50 MB
+
+
+@dataclass
+class DatasetLoadConfig:
+    """Configuration options for loading dataset files."""
+    max_file_size_mb: int = DEFAULT_MAX_FILE_SIZE_MB
 
 
 class LoaderError(Exception):
@@ -79,7 +86,8 @@ def detect_encoding(raw_bytes: bytes) -> str:
 def load_csv(
     file_input: bytes | BinaryIO | str,
     filename: str = "dataset.csv",
-    max_size: int = MAX_FILE_SIZE_BYTES
+    max_size: int = MAX_FILE_SIZE_BYTES,
+    config: "DatasetLoadConfig | None" = None,
 ) -> Tuple[pd.DataFrame, dict]:
     """
     Loads and validates a CSV file into a pandas DataFrame.
@@ -91,6 +99,8 @@ def load_csv(
     - Detects delimiter when non-standard (e.g. semicolon, tab).
     - Catches empty files and header-only files with clear exceptions.
     """
+    if config is not None:
+        max_size = config.max_file_size_mb * 1024 * 1024
     # Normalize to bytes
     if isinstance(file_input, bytes):
         raw_bytes = file_input
