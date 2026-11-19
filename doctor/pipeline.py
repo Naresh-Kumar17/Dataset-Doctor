@@ -110,6 +110,10 @@ class RemediationPipeline:
         self.steps.append(step)
         return step
 
+    def add_step(self, step: PipelineStep) -> None:
+        """Appends a pre-configured PipelineStep directly to the pipeline."""
+        self.steps.append(step)
+
     def transform(self, df: pd.DataFrame, is_test: bool = False) -> pd.DataFrame:
         """
         Applies all fitted pipeline steps in sequential order.
@@ -443,3 +447,7 @@ class RemediationPipeline:
         with open(path, "w", encoding="utf-8") as f:
             f.write(code)
         return path
+
+
+# Convenience alias for experiment manifests and standalone scripts
+CleaningPipeline = RemediationPipeline
