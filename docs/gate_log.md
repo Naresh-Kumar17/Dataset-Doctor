@@ -286,6 +286,64 @@
 
 ---
 
+## 2026-11-18  Phase 18: Python Core SDK & Terminal CLI   PASS
+- Automated benchmark runner verified via `python -m doctor.bench sdk_cli` and `python -m doctor.bench --all`:
+  - 7 of 7 Gate 18 checks PASSED:
+    - [PASS] DatasetDoctor SDK loads CSV and profiles schema cleanly with zero web dependencies.
+    - [PASS] SDK audit aggregates 6-domain risk matrix and scores clean dataset 100/100.
+    - [PASS] SDK split locks test partition and preserves clean row partition invariants.
+    - [PASS] CLI profile command executes cleanly and formats output in JSON / tabular format.
+    - [PASS] CLI audit exports structured JSON quality report to disk cleanly.
+    - [PASS] CLI check-leaks enforces strict exit code 1 on data leaks and exit code 0 on clean data.
+    - [PASS] SDK & CLI operations complete rapidly (0.729s < 4.0s).
+- Unified Headless Python SDK in `doctor/api.py` with programmatic methods: `from_csv()`, `from_dataframe()`, `profile()`, `audit()`, `split()`, `evaluate()`, `check_leakage()`, `explain()`, and `auto_remediate()`.
+- Production-grade Terminal CLI in `doctor/cli.py` & `doctor/__main__.py` with commands: `profile`, `audit`, `evaluate`, `check-leaks`, `bench`, and `version`.
+- 12 unit & integration tests in `tests/test_sdk.py` and `tests/test_cli.py` passing cleanly.
+
+---
+
+## 2026-11-19  Phase 19: Full Experiment Manifest & Bit-for-Bit Reproducibility   PASS
+- Automated benchmark runner verified via `python -m doctor.bench manifest` and `python -m doctor.bench --all`:
+  - 8 of 8 Gate 19 checks PASSED:
+    - [PASS] compute_dataframe_hash generates deterministic 64-character SHA-256 hex digest.
+    - [PASS] Cryptographic hash provides bit-for-bit sensitivity against minute data modifications.
+    - [PASS] ManifestGenerator compiles complete provenance including split and hash metrics.
+    - [PASS] Manifest serializes to standard JSON conforming to cryptographic specification.
+    - [PASS] ManifestGenerator.verify_reproducibility verifies bit-for-bit fidelity on identical data.
+    - [PASS] verify_reproducibility reliably detects dataset tampering or floating-point drift.
+    - [PASS] export_standalone_script outputs 100% self-contained reproduction script with embedded hashes.
+    - [PASS] Manifest and reproducibility verification execute rapidly (0.384s < 4.0s).
+- Full cryptographic data provenance engine in `doctor/manifest.py` tracking raw dataset, split indices, learned transformer parameters, decision audit trail, evaluation metrics, and system environment metadata.
+- Standalone reproduction script generator in `doctor/export.py` exporting zero-dependency, bit-for-bit verifiable `reproduce.py`.
+- 4 unit tests in `tests/test_manifest.py` verifying hash determinism, JSON serialization, and reproduction audit.
+
+---
+
+## 2026-11-20  Phase 20: Model Context Protocol (MCP) Server & Agent Safety Contract   PASS
+- Automated benchmark runner verified via `python -m doctor.bench mcp` and `python -m doctor.bench --all`:
+  - 9 of 9 Gate 20 checks PASSED:
+    - [PASS] MCP Server executes JSON-RPC 2.0 protocol handshake (initialize, ping) cleanly.
+    - [PASS] tools/list advertises all 6 specialized Dataset Doctor tools with valid schemas.
+    - [PASS] doctor_load_dataset profiles dataset and locks test partition cryptographically.
+    - [PASS] doctor_audit_quality evaluates cross-module risk matrix and returns health score.
+    - [PASS] doctor_get_recommendations produces actionable advice with candidate alternatives.
+    - [PASS] doctor_apply_remediation fits on train and updates active pipeline cleanly.
+    - [PASS] Agent Safety Contract strictly intercepts and blocks test partition mutation attempts.
+    - [PASS] doctor_evaluate_baseline and doctor_export_reproduce output verified artifacts.
+    - [PASS] Full MCP workflow execution completes rapidly (3.908s < 10.0s).
+- Standard JSON-RPC 2.0 stdio server in `doctor/mcp.py` exposing 6 standardized tools:
+  1. `doctor_load_dataset`: dataset loading, schema inference, and train/test partition locking.
+  2. `doctor_audit_quality`: multi-domain risk matrix audit and data health scoring.
+  3. `doctor_get_recommendations`: cross-validated, evidence-backed remediation advice.
+  4. `doctor_apply_remediation`: train-only fitting and pipeline step recording.
+  5. `doctor_evaluate_baseline`: Random Forest baseline training and evaluation against locked test partition.
+  6. `doctor_export_reproduce`: standalone reproduction script and manifest generation.
+- Agent Safety Contract strictly enforced: any agent action attempting to drop test rows, resample test partitions, or mutate test partition indices is intercepted and rejected with an invariant error.
+- Full test suite: 184 unit & integration tests passing (`pytest`).
+- Benchmark test bench: 20 of 20 gates passing 100% (`python -m doctor.bench --all`).
+
+---
+
 ## Future Gates Pipeline (Phases 17–21 Specifications)
 
 ### Gate 9: Class Imbalance Detection (Scheduled)

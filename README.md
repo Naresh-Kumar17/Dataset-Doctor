@@ -14,8 +14,8 @@
 ### *The Data-to-Model Quality, ML Reliability & Leak-Free Remediation Platform*
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live%20on%20Render-00E599?style=for-the-badge&logo=render&logoColor=000)](https://dataset-doctor-8c7b.onrender.com/)
-[![Gate 16 PASS](https://img.shields.io/badge/Gate%2016-PASS%20(16%2F16)-7CFFB2?style=for-the-badge&logo=checkmarx&logoColor=000)](docs/gate_log.md)
-[![Test Suite](https://img.shields.io/badge/Tests-159%20Passed-FFD93D?style=for-the-badge&logo=pytest&logoColor=000)](tests/)
+[![Gate 20 PASS](https://img.shields.io/badge/Gate%2020-PASS%20(20%2F20)-7CFFB2?style=for-the-badge&logo=checkmarx&logoColor=000)](docs/gate_log.md)
+[![Test Suite](https://img.shields.io/badge/Tests-184%20Passed-FFD93D?style=for-the-badge&logo=pytest&logoColor=000)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.14-6BCBFF?style=for-the-badge&logo=python&logoColor=000)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-B197FC?style=for-the-badge)](LICENSE)
 [![Privacy First](https://img.shields.io/badge/Privacy-100%25%20Local%20First-FF6B9D?style=for-the-badge)](docs/authentication%20and%20security.md)
@@ -369,19 +369,30 @@ Core Progress: [█████████████████████�
 - **Feature Pruning Advisor**: Recommends removing noisy zero-importance features.
 
 </td>
-<td width="33%" valign="top" style="background:#FFF1F2;border:1px solid #FECDD3;padding:12px;border-radius:8px;">
+<td width="33%" valign="top" style="background:#F0FDF4;border:1px solid #BBF7D0;padding:12px;border-radius:8px;">
 
 #### 💻 Phase 18: Headless CLI & SDK
-<span style="background:#E11D48;color:#FFF;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;">🟣 ROADMAP</span>
+<span style="background:#10B981;color:#FFF;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;">🟢 GATE PASSED</span>
 - **Python Core SDK**: Programmatic `doctor.*` interface for scripts and Jupyter.
 - **Terminal CLI**: `doctor profile`, `doctor audit`, `doctor evaluate`, `doctor bench`.
 - **Zero Duplication**: CLI and Web app share the identical underlying engine.
 
 </td>
-<td width="33%" valign="top" style="background:#FFF1F2;border:1px solid #FECDD3;padding:12px;border-radius:8px;">
+<td width="33%" valign="top" style="background:#F0FDF4;border:1px solid #BBF7D0;padding:12px;border-radius:8px;">
+
+#### 📜 Phase 19: Full Reproducibility Manifest
+<span style="background:#10B981;color:#FFF;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;">🟢 GATE PASSED</span>
+- **Cryptographic Provenance**: SHA-256 data hashing and complete manifest.json export.
+- **Bit-for-Bit Validation**: Verifies zero float drift and identical pipeline outputs.
+- **Zero Dependencies**: Standalone `reproduce.py` execution in any clean environment.
+
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top" style="background:#F0FDF4;border:1px solid #BBF7D0;padding:12px;border-radius:8px;">
 
 #### 🤖 Phase 20: MCP Server for AI Agents
-<span style="background:#E11D48;color:#FFF;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;">🟣 ROADMAP</span>
+<span style="background:#10B981;color:#FFF;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;">🟢 GATE PASSED</span>
 - **Model Context Protocol**: Native MCP server connecting Antigravity, Claude, and Cursor.
 - **AI Agent Tooling**: Exposes audit, recommendation, and export tools via JSON-RPC.
 - **Agent Safety Contract**: Test set remains strictly immutable to autonomous agents.
