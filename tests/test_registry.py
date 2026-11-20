@@ -30,6 +30,9 @@ def test_registry_lists_all_planned_modules():
         "multi_model",
         "error_analysis",
         "explainability",
+        "sdk_cli",
+        "manifest",
+        "mcp",
     ]
     for m in modules:
         if m.id in completed:

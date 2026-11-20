@@ -135,6 +135,27 @@ PLANNED_MODULES: Dict[str, ModuleInfo] = {
         description="Validation-fold permutation importance, non-causal disclosures, and feature pruning advisor.",
         status="gate_passed",
     ),
+    "sdk_cli": ModuleInfo(
+        id="sdk_cli",
+        name="Python Core SDK & Terminal CLI",
+        phase=18,
+        description="Headless DatasetDoctor programmatic interface and terminal CLI commands with zero web dependencies.",
+        status="gate_passed",
+    ),
+    "manifest": ModuleInfo(
+        id="manifest",
+        name="Full Experiment Manifest & Bit-for-Bit Reproducibility",
+        phase=19,
+        description="Cryptographic SHA-256 dataset provenance, manifest.json export, standalone reproduce.py generation, and bit-for-bit audit.",
+        status="gate_passed",
+    ),
+    "mcp": ModuleInfo(
+        id="mcp",
+        name="Model Context Protocol (MCP) Server",
+        phase=20,
+        description="JSON-RPC 2.0 stdio server connecting AI agents to Dataset Doctor while strictly enforcing the Agent Safety Contract.",
+        status="gate_passed",
+    ),
 }
 
 

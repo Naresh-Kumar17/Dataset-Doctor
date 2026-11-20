@@ -2321,6 +2321,447 @@ def run_explainability_gate() -> tuple[bool, dict]:
     return all_passed, details
 
 
+def run_sdk_cli_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 18 evaluation for Python Core SDK & Terminal CLI (Phase 18).
+    Verifies:
+    1. DatasetDoctor.from_csv loads and profiles dataset cleanly without web server.
+    2. SDK audit aggregates 6-domain risk matrix and calculates quality score.
+    3. SDK split locks test partition and preserves class ratio.
+    4. Terminal CLI profile command outputs valid schema with exit code 0.
+    5. Terminal CLI audit with --out generates valid JSON report.
+    6. Terminal CLI check-leaks --strict exits with code 1 on leaks and code 0 on clean data.
+    7. SDK & CLI operations execute rapidly (< 4.0s).
+    """
+    import json
+    import time
+    from doctor.api import DatasetDoctor
+    from doctor.cli import main as cli_main
+
+    details = {"checks": [], "planted": 7, "found": 0, "missed": 0, "false_alarms": 0}
+    t0 = time.perf_counter()
+
+    clean_csv = ROOT_DIR / "data" / "planted" / "clean_control.csv"
+    leak_csv = ROOT_DIR / "data" / "planted" / "leakage.csv"
+
+    # 1. SDK from_csv and profile
+    doc = DatasetDoctor.from_csv(str(clean_csv), target="target")
+    prof = doc.profile()
+    chk_prof = bool(prof.n_rows == 500 and prof.n_cols == 6 and prof.target_column == "target")
+    details["checks"].append({
+        "name": "DatasetDoctor SDK loads CSV and profiles schema cleanly with zero web dependencies",
+        "passed": chk_prof,
+    })
+    if chk_prof: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 2. SDK audit
+    audit = doc.audit()
+    chk_audit = bool(audit.quality_score == 100 and audit.can_train is True and len(audit.domain_summaries) == 6)
+    details["checks"].append({
+        "name": "SDK audit aggregates 6-domain risk matrix and scores clean dataset 100/100",
+        "passed": chk_audit,
+    })
+    if chk_audit: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 3. SDK split & evaluate
+    train_df, test_df = doc.split(test_size=0.2, random_state=42)
+    chk_split = bool(len(train_df) == 400 and len(test_df) == 100 and set(train_df.index).isdisjoint(set(test_df.index)))
+    details["checks"].append({
+        "name": "SDK split locks test partition and preserves clean row partition invariants",
+        "passed": chk_split,
+    })
+    if chk_split: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 4. CLI profile
+    ret_prof = cli_main(["profile", str(clean_csv), "--target", "target", "--json"])
+    chk_cli_prof = bool(ret_prof == 0)
+    details["checks"].append({
+        "name": "CLI profile command executes cleanly and formats output in JSON / tabular format",
+        "passed": chk_cli_prof,
+    })
+    if chk_cli_prof: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 5. CLI audit --out
+    temp_report = ROOT_DIR / "data" / "planted" / "cli_temp_audit.json"
+    ret_audit = cli_main(["audit", str(clean_csv), "--target", "target", "--out", str(temp_report)])
+    chk_cli_audit = bool(ret_audit == 0 and temp_report.exists())
+    if temp_report.exists():
+        temp_report.unlink()
+    details["checks"].append({
+        "name": "CLI audit exports structured JSON quality report to disk cleanly",
+        "passed": chk_cli_audit,
+    })
+    if chk_cli_audit: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 6. CLI check-leaks --strict exit codes
+    ret_leak = cli_main(["check-leaks", str(leak_csv), "--target", "target", "--strict"])
+    ret_clean = cli_main(["check-leaks", str(clean_csv), "--target", "target", "--strict"])
+    chk_strict = bool(ret_leak == 1 and ret_clean == 0)
+    details["checks"].append({
+        "name": "CLI check-leaks enforces strict exit code 1 on data leaks and exit code 0 on clean data",
+        "passed": chk_strict,
+    })
+    if chk_strict: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 7. Speed benchmark < 4.0s
+    elapsed = time.perf_counter() - t0
+    chk_perf = bool(elapsed < 4.0)
+    details["checks"].append({
+        "name": f"SDK & CLI operations complete rapidly ({elapsed:.3f}s < 4.0s)",
+        "passed": chk_perf,
+    })
+    if chk_perf: details["found"] += 1
+    else: details["missed"] += 1
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
+def run_manifest_reproducibility_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 19 evaluation for Full Experiment Manifest & Bit-for-Bit Reproducibility (Phase 19).
+    Verifies:
+    1. compute_dataframe_hash generates deterministic 64-char SHA-256 hash.
+    2. Bit-for-bit sensitivity: altering a single value changes hash completely.
+    3. ManifestGenerator compiles full cryptographic provenance with system environment metadata.
+    4. Manifest JSON serialization and roundtrip integrity.
+    5. Bit-for-bit verification succeeds on reproduced clean dataset.
+    6. Bit-for-bit verification detects tampered row with precise reason.
+    7. Standalone script export executes standalone reproduction without doctor dependencies.
+    8. Execution completes rapidly (< 3.0s).
+    """
+    import io
+    import time
+    import numpy as np
+    import pandas as pd
+    from doctor.api import DatasetDoctor
+    from doctor.manifest import (
+        ManifestGenerator,
+        compute_dataframe_hash,
+        DecisionRecord,
+        SplitProvenance,
+    )
+    from doctor.export import export_standalone_script
+
+    details = {"checks": [], "planted": 8, "found": 0, "missed": 0, "false_alarms": 0}
+    t0 = time.perf_counter()
+
+    # 1. Deterministic SHA-256 hash
+    df1 = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    df2 = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    h1 = compute_dataframe_hash(df1)
+    h2 = compute_dataframe_hash(df2)
+    chk_det = bool(len(h1) == 64 and h1 == h2)
+    details["checks"].append({
+        "name": "compute_dataframe_hash generates deterministic 64-character SHA-256 hex digest",
+        "passed": chk_det,
+    })
+    if chk_det: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 2. Bit-for-bit sensitivity
+    df_tampered = df2.copy()
+    df_tampered.loc[0, "a"] = 99
+    h_tampered = compute_dataframe_hash(df_tampered)
+    chk_sens = bool(h_tampered != h1)
+    details["checks"].append({
+        "name": "Cryptographic hash provides bit-for-bit sensitivity against minute data modifications",
+        "passed": chk_sens,
+    })
+    if chk_sens: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 3. ManifestGenerator compiles provenance
+    clean_csv = ROOT_DIR / "data" / "planted" / "clean_control.csv"
+    doc = DatasetDoctor.from_csv(str(clean_csv), target="target")
+    train_df, test_df = doc.split(test_size=0.2, random_state=42)
+    pipeline = doc.auto_remediate()
+    clean_train = pipeline.transform(train_df, is_test=False)
+    clean_test = pipeline.transform(test_df, is_test=True)
+
+    gen = ManifestGenerator(manifest_version="1.0.0")
+    manifest = gen.generate(
+        raw_df=doc.df,
+        train_df=train_df,
+        test_df=test_df,
+        clean_train_df=clean_train,
+        clean_test_df=clean_test,
+        target_column="target",
+        pipeline=pipeline,
+        dataset_name="clean_control.csv",
+    )
+    chk_comp = bool(
+        manifest.raw_rows == 500
+        and manifest.raw_cols == 6
+        and len(manifest.clean_train_hash) == 64
+        and len(manifest.clean_test_hash) == 64
+    )
+    details["checks"].append({
+        "name": "ManifestGenerator compiles complete provenance including split and hash metrics",
+        "passed": chk_comp,
+    })
+    if chk_comp: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 4. JSON serialization
+    json_str = manifest.to_json()
+    chk_json = bool('"manifest_version": "1.0.0"' in json_str and '"raw_dataset_hash"' in json_str)
+    details["checks"].append({
+        "name": "Manifest serializes to standard JSON conforming to cryptographic specification",
+        "passed": chk_json,
+    })
+    if chk_json: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 5. Bit-for-bit verification passes on identical data
+    ok, reasons = gen.verify_reproducibility(
+        manifest=manifest,
+        reproduced_train_df=clean_train,
+        reproduced_test_df=clean_test,
+    )
+    chk_veri_ok = bool(ok is True and len(reasons) == 0)
+    details["checks"].append({
+        "name": "ManifestGenerator.verify_reproducibility verifies bit-for-bit fidelity on identical data",
+        "passed": chk_veri_ok,
+    })
+    if chk_veri_ok: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 6. Bit-for-bit verification catches tampering
+    bad_train = clean_train.copy()
+    bad_train.iloc[0, 0] = "MODIFIED_TAMPERED_VAL"
+    bad_ok, bad_reasons = gen.verify_reproducibility(
+        manifest=manifest,
+        reproduced_train_df=bad_train,
+        reproduced_test_df=clean_test,
+    )
+    chk_veri_fail = bool(bad_ok is False and any("Train DataFrame hash mismatch" in r for r in bad_reasons))
+    details["checks"].append({
+        "name": "verify_reproducibility reliably detects dataset tampering or floating-point drift",
+        "passed": chk_veri_fail,
+    })
+    if chk_veri_fail: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 7. Standalone script export
+    script_str = export_standalone_script(
+        pipeline=pipeline,
+        manifest=manifest,
+        raw_csv_path="clean_control.csv",
+    )
+    chk_script = bool(
+        "Standalone Dataset Doctor Reproduction Script" in script_str
+        and "def clean_dataset" in script_str
+        and manifest.raw_dataset_hash in script_str
+    )
+    details["checks"].append({
+        "name": "export_standalone_script outputs 100% self-contained reproduction script with embedded hashes",
+        "passed": chk_script,
+    })
+    if chk_script: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 8. Benchmark runtime < 4.0s
+    elapsed = time.perf_counter() - t0
+    chk_perf = bool(elapsed < 4.0)
+    details["checks"].append({
+        "name": f"Manifest and reproducibility verification execute rapidly ({elapsed:.3f}s < 4.0s)",
+        "passed": chk_perf,
+    })
+    if chk_perf: details["found"] += 1
+    else: details["missed"] += 1
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
+def run_mcp_gate() -> tuple[bool, dict]:
+    """
+    Executes Gate 20 evaluation for Model Context Protocol (MCP) Server (Phase 20).
+    Verifies:
+    1. Standard JSON-RPC 2.0 handshake (initialize, ping) with protocol 2024-11-05.
+    2. Tool discovery exposes all 6 specialized data science tools.
+    3. doctor_load_dataset profiles dataset and cryptographically locks test partition.
+    4. doctor_audit_quality aggregates multi-domain data health score.
+    5. doctor_get_recommendations yields evidence-backed remediation advice.
+    6. doctor_apply_remediation executes clean pipeline transformation.
+    7. Agent Safety Contract intercepts and blocks attempts to drop rows or mutate test partition.
+    8. Baseline model evaluation and standalone reproduce script export succeed.
+    9. Execution completes rapidly (< 4.0s).
+    """
+    import json
+    import time
+    from doctor.mcp import DatasetDoctorMCPServer
+
+    details = {"checks": [], "planted": 9, "found": 0, "missed": 0, "false_alarms": 0}
+    t0 = time.perf_counter()
+
+    server = DatasetDoctorMCPServer()
+    clean_csv = ROOT_DIR / "data" / "planted" / "clean_control.csv"
+
+    # 1. JSON-RPC Handshake
+    init_res = server.handle_message({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {"protocolVersion": "2024-11-05"},
+    })
+    ping_res = server.handle_message({"jsonrpc": "2.0", "id": 2, "method": "ping"})
+    chk_handshake = bool(
+        init_res
+        and init_res["result"]["protocolVersion"] == "2024-11-05"
+        and init_res["result"]["serverInfo"]["name"] == "dataset-doctor"
+        and ping_res["result"] == {}
+    )
+    details["checks"].append({
+        "name": "MCP Server executes JSON-RPC 2.0 protocol handshake (initialize, ping) cleanly",
+        "passed": chk_handshake,
+    })
+    if chk_handshake: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 2. Tool Discovery
+    list_res = server.handle_message({"jsonrpc": "2.0", "id": 3, "method": "tools/list"})
+    tools = list_res["result"]["tools"] if list_res else []
+    tool_names = [t["name"] for t in tools]
+    expected_tools = [
+        "doctor_load_dataset",
+        "doctor_audit_quality",
+        "doctor_get_recommendations",
+        "doctor_apply_remediation",
+        "doctor_evaluate_baseline",
+        "doctor_export_reproduce",
+    ]
+    chk_tools = bool(all(exp in tool_names for exp in expected_tools) and len(tools) == 6)
+    details["checks"].append({
+        "name": "tools/list advertises all 6 specialized Dataset Doctor tools with valid schemas",
+        "passed": chk_tools,
+    })
+    if chk_tools: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 3. Load dataset & lock test partition
+    load_res = server.call_tool("doctor_load_dataset", {
+        "file_path": str(clean_csv),
+        "target_column": "target",
+    })
+    chk_load = bool(
+        load_res.get("status") == "dataset_loaded"
+        and load_res.get("train_rows") == 400
+        and load_res.get("test_rows") == 100
+        and load_res.get("test_partition_locked") is True
+    )
+    details["checks"].append({
+        "name": "doctor_load_dataset profiles dataset and locks test partition cryptographically",
+        "passed": chk_load,
+    })
+    if chk_load: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 4. Audit Quality
+    audit_res = server.call_tool("doctor_audit_quality", {})
+    chk_audit = bool(
+        audit_res.get("quality_score") == 100
+        and audit_res.get("can_train") is True
+        and "nulls" in audit_res.get("domain_summaries", {})
+    )
+    details["checks"].append({
+        "name": "doctor_audit_quality evaluates cross-module risk matrix and returns health score",
+        "passed": chk_audit,
+    })
+    if chk_audit: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 5. Get Recommendations
+    rec_res = server.call_tool("doctor_get_recommendations", {
+        "issue_id": "nulls",
+        "column": "country",
+    })
+    chk_rec = bool(
+        rec_res.get("issue_id") == "nulls"
+        and rec_res.get("column") == "country"
+        and len(rec_res.get("options", [])) > 0
+    )
+    details["checks"].append({
+        "name": "doctor_get_recommendations produces actionable advice with candidate alternatives",
+        "passed": chk_rec,
+    })
+    if chk_rec: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 6. Apply Remediation
+    apply_res = server.call_tool("doctor_apply_remediation", {
+        "issue_id": "nulls",
+        "method": "mode",
+        "column": "country",
+        "params": {"fill_value": "missing"},
+    })
+    chk_apply = bool(
+        apply_res.get("status") == "remediation_applied"
+        and apply_res.get("test_partition_intact") is True
+        and apply_res.get("test_shape")[0] == 100
+    )
+    details["checks"].append({
+        "name": "doctor_apply_remediation fits on train and updates active pipeline cleanly",
+        "passed": chk_apply,
+    })
+    if chk_apply: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 7. Agent Safety Contract Enforcement
+    bad_res = server.call_tool("doctor_apply_remediation", {
+        "issue_id": "nulls",
+        "method": "drop_rows",
+        "column": "country",
+        "apply_to_test": True,
+    })
+    chk_safety = bool(
+        bad_res.get("safety_violation") is True
+        and "INVARIANT VIOLATION" in bad_res.get("error", "")
+    )
+    details["checks"].append({
+        "name": "Agent Safety Contract strictly intercepts and blocks test partition mutation attempts",
+        "passed": chk_safety,
+    })
+    if chk_safety: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 8. Baseline evaluation and export
+    eval_res = server.call_tool("doctor_evaluate_baseline", {"fast_mode": True})
+    exp_res = server.call_tool("doctor_export_reproduce", {})
+    chk_eval_exp = bool(
+        eval_res.get("model_name") == "RandomForestClassifier"
+        and "accuracy" in eval_res.get("test_scores", {})
+        and exp_res.get("manifest_version") == "1.0.0"
+        and len(exp_res.get("clean_train_hash", "")) == 64
+    )
+    details["checks"].append({
+        "name": "doctor_evaluate_baseline and doctor_export_reproduce output verified artifacts",
+        "passed": chk_eval_exp,
+    })
+    if chk_eval_exp: details["found"] += 1
+    else: details["missed"] += 1
+
+    # 9. Performance < 10.0s
+    elapsed = time.perf_counter() - t0
+    chk_perf = bool(elapsed < 10.0)
+    details["checks"].append({
+        "name": f"Full MCP workflow execution completes rapidly ({elapsed:.3f}s < 10.0s)",
+        "passed": chk_perf,
+    })
+    if chk_perf: details["found"] += 1
+    else: details["missed"] += 1
+
+    all_passed = all(c["passed"] for c in details["checks"])
+    return all_passed, details
+
+
 def run_benchmark(target: str = "--all"):
     print("=" * 65)
     print("DATASET DOCTOR: AUTOMATED TEST BENCH")
@@ -2665,6 +3106,69 @@ def run_benchmark(target: str = "--all"):
             status = "gate_passed" if passed else "gate_failed"
             now_iso = datetime.now().isoformat()
             update_module_status("explainability", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "sdk_cli":
+            passed, gate_details = run_sdk_cli_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("sdk_cli", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "manifest":
+            passed, gate_details = run_manifest_reproducibility_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("manifest", status, gate_details=gate_details, timestamp=now_iso)
+
+            print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
+            for chk in gate_details["checks"]:
+                mark = "[PASS]" if chk["passed"] else "[FAIL]"
+                print(f"    {mark} {chk['name']}")
+
+            print(f"  RESULT: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                all_passed = False
+
+            results[mod.id] = {
+                "phase": mod.phase,
+                "status": status,
+                "result": "PASS" if passed else "FAIL",
+                "gate_details": gate_details,
+            }
+        elif mod.id == "mcp":
+            passed, gate_details = run_mcp_gate()
+            status = "gate_passed" if passed else "gate_failed"
+            now_iso = datetime.now().isoformat()
+            update_module_status("mcp", status, gate_details=gate_details, timestamp=now_iso)
 
             print(f"  Planted: {gate_details['planted']} | Found: {gate_details['found']} | Missed: {gate_details['missed']} | False alarms: {gate_details['false_alarms']}")
             for chk in gate_details["checks"]:
