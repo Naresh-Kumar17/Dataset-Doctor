@@ -85,3 +85,20 @@ def test_cli_evaluate(clean_csv, capsys):
     assert "TRAIN 5-FOLD CV SCORES" in captured.out
     assert "HONEST TEST SET PERFORMANCE" in captured.out
 
+
+def test_cli_consult(clean_csv, capsys, tmp_path):
+    out_file = tmp_path / "discharge_summary.md"
+    ret = main(["consult", clean_csv, "--target", "target", "--out", str(out_file)])
+    assert ret == 0
+    assert out_file.exists()
+    captured = capsys.readouterr()
+    assert "CLINICAL CONSULTATION & DISCHARGE SUMMARY" in captured.out
+
+    # JSON output test
+    ret_json = main(["consult", clean_csv, "--target", "target", "--json"])
+    assert ret_json == 0
+    captured_json = capsys.readouterr()
+    data = json.loads(captured_json.out)
+    assert "patient_status" in data
+    assert "prescriptions" in data
+

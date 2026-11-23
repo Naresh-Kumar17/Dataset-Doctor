@@ -159,6 +159,20 @@ class DatasetDoctorMCPServer:
                     },
                 },
             },
+            {
+                "name": "doctor_ai_consultation",
+                "description": "Requests an autonomous AI Doctor Second Opinion and Clinical Discharge Letter evaluating semantic leakage, accuracy illusions, and production survival prognosis.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "provider": {
+                            "type": "string",
+                            "description": "Provider to use: 'auto', 'gemini', 'openai', or 'offline'. Default 'auto'.",
+                            "enum": ["auto", "gemini", "openai", "offline"],
+                        },
+                    },
+                },
+            },
         ]
 
     def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -176,6 +190,8 @@ class DatasetDoctorMCPServer:
                 return self._tool_evaluate_baseline(arguments)
             elif tool_name == "doctor_export_reproduce":
                 return self._tool_export_reproduce(arguments)
+            elif tool_name == "doctor_ai_consultation":
+                return self._tool_ai_consultation(arguments)
             else:
                 return {"error": f"Unknown tool: '{tool_name}'"}
         except AgentSafetyViolation as e:
@@ -484,6 +500,22 @@ class DatasetDoctorMCPServer:
             "manifest_path": manifest_path,
             "total_decisions_logged": len(manifest.decisions),
             "script_preview": "\n".join(script_code.splitlines()[:25]),
+        }
+
+    def _tool_ai_consultation(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        if not self.current_doctor:
+            return {"error": "No active dataset session. Call doctor_load_dataset first."}
+        provider = args.get("provider", "auto")
+        report = self.current_doctor.ai_consult(provider=provider)
+        return {
+            "status": "success",
+            "patient_status": report.patient_status,
+            "clinical_impression": report.clinical_impression,
+            "survival_forecast": report.survival_forecast,
+            "semantic_leakage_review": report.semantic_leakage_review,
+            "prescriptions": report.prescriptions,
+            "discharge_letter": report.discharge_letter_markdown,
+            "provider": report.provider,
         }
 
     # -------------------------------------------------------------------------

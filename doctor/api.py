@@ -232,6 +232,29 @@ class DatasetDoctor:
         self.pipeline = pipe
         return self.pipeline
 
+    def ai_consult(
+        self,
+        provider: str = "auto",
+        api_key: Optional[str] = None,
+    ) -> Any:
+        """
+        Invokes the AI Diagnostic Consultant to produce a clinical discharge summary,
+        semantic leakage review, and production survival forecast.
+        """
+        from doctor.ai_consultant import AIConsultant
+        consultant = AIConsultant()
+        assessment = self.audit() if not self.last_assessment else self.last_assessment
+        profile_obj = self.profile()
+        profile_dict = profile_obj.to_dict() if hasattr(profile_obj, "to_dict") else {}
+        return consultant.consult(
+            df=self.df,
+            profile=profile_dict,
+            quality_assessment=assessment,
+            target_column=self.target,
+            provider=provider,
+            api_key_override=api_key,
+        )
+
     def export_script(self, out_path: Union[str, Path] = "reproduce.py") -> str:
         """Exports a standalone reproduce.py script with all learned parameters."""
         code_str = self.pipeline.export_reproduce_code()

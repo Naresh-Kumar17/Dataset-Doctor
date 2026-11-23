@@ -84,3 +84,15 @@ def test_sdk_explainability(clean_control_csv):
     assert attr.test_data_snooped is False
     assert "PREDICTIVE IMPORTANCE" in attr.non_causal_disclosure
 
+
+def test_sdk_ai_consult(clean_control_csv, leakage_csv):
+    doc_clean = DatasetDoctor.from_csv(clean_control_csv, target="target")
+    report_clean = doc_clean.ai_consult(provider="offline")
+    assert report_clean.patient_status in ("STABLE", "EXCELLENT")
+    assert "CLINICAL CONSULTATION" in report_clean.discharge_letter_markdown
+
+    doc_leak = DatasetDoctor.from_csv(leakage_csv, target="target")
+    report_leak = doc_leak.ai_consult(provider="offline")
+    assert report_leak.patient_status in ("CRITICAL", "GUARDED")
+    assert len(report_leak.prescriptions) > 0
+

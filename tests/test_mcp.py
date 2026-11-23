@@ -65,6 +65,7 @@ def test_mcp_list_tools():
         "doctor_apply_remediation",
         "doctor_evaluate_baseline",
         "doctor_export_reproduce",
+        "doctor_ai_consultation",
     ]
     for exp in expected_tools:
         assert exp in tool_names
@@ -177,3 +178,36 @@ def test_mcp_evaluate_and_export(clean_control_csv, tmp_path):
     assert out_script.exists()
     assert (tmp_path / "agent_reproduce_manifest.json").exists()
     assert "Standalone Dataset Doctor Reproduction Script" in out_script.read_text(encoding="utf-8")
+
+
+def test_mcp_ai_consultation(clean_control_csv):
+    server = DatasetDoctorMCPServer()
+    server.handle_message({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "doctor_load_dataset",
+            "arguments": {"file_path": clean_control_csv, "target_column": "target"},
+        },
+    })
+
+    # Call AI consultation
+    msg = {
+        "jsonrpc": "2.0",
+        "id": 70,
+        "method": "tools/call",
+        "params": {
+            "name": "doctor_ai_consultation",
+            "arguments": {"provider": "offline"},
+        },
+    }
+    resp = server.handle_message(msg)
+    assert resp["id"] == 70
+    assert not resp["result"]["isError"]
+
+    content_data = json.loads(resp["result"]["content"][0]["text"])
+    assert content_data["status"] == "success"
+    assert "patient_status" in content_data
+    assert "discharge_letter" in content_data
+    assert "prescriptions" in content_data

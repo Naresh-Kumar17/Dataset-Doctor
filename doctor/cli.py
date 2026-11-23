@@ -57,7 +57,16 @@ def build_parser() -> argparse.ArgumentParser:
     bench_p.add_argument("module", nargs="?", default="--all", help="Module id or --all")
     bench_p.add_argument("--all", dest="run_all", action="store_true", help="Run all modules")
 
-    # 6. version
+    # 6. consult
+    consult_p = subparsers.add_parser("consult", help="Obtain AI Doctor clinical consultation and discharge summary")
+    consult_p.add_argument("file", help="Path to CSV file")
+    consult_p.add_argument("--target", default=None, help="Target feature name")
+    consult_p.add_argument("--provider", default="auto", choices=["auto", "gemini", "openai", "offline"], help="AI provider (default: auto)")
+    consult_p.add_argument("--key", default=None, help="Optional API key override")
+    consult_p.add_argument("--out", default=None, help="Optional output path to save markdown discharge summary")
+    consult_p.add_argument("--json", action="store_true", help="Output raw consultation report in JSON format")
+
+    # 7. version
     subparsers.add_parser("version", help="Print Dataset Doctor version")
 
     # 7. mcp
@@ -234,6 +243,25 @@ def cmd_bench(args: argparse.Namespace) -> int:
     return 0 if success else 1
 
 
+def cmd_consult(args) -> int:
+    path = Path(args.file)
+    if not path.exists():
+        print(f"Error: File '{args.file}' does not exist.", file=sys.stderr)
+        return 1
+    doc = DatasetDoctor.from_csv(args.file, target=args.target)
+    report = doc.ai_consult(provider=args.provider, api_key=args.key)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(report.discharge_letter_markdown)
+    if args.out:
+        out_p = Path(args.out)
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        out_p.write_text(report.discharge_letter_markdown, encoding="utf-8")
+        print(f"\n[OK] Clinical Discharge Summary saved to {args.out}")
+    return 0
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -255,6 +283,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_check_leaks(args)
     elif args.command == "bench":
         return cmd_bench(args)
+    elif args.command == "consult":
+        return cmd_consult(args)
     elif args.command == "mcp":
         from doctor.mcp import DatasetDoctorMCPServer
         server = DatasetDoctorMCPServer()
