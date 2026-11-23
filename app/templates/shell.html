@@ -2,35 +2,68 @@
 
 {% block content %}
 <div class="layout">
-  <!-- Left Sidebar with Module Registry -->
+  <!-- Left Sidebar with Streamlined Consultation Journey & Diagnostic Labs -->
   <aside class="sidebar">
-    <div class="sidebar-title">NAVIGATION</div>
+    <div class="sidebar-title">PATIENT CONSULTATION</div>
     
     <a href="/profile" class="module-nav-item {% if current_page == 'profile' %}active{% endif %}">
-      <span>1. Profile</span>
-      <span class="chip built">READY</span>
+      <span>1. Intake & Schema</span>
+      <span class="chip built" style="font-size: 10px;">STEP 1</span>
     </a>
 
-    <div class="sidebar-title" style="margin-top: 12px;">DIAGNOSTIC MODULES</div>
-    {% for mod in modules %}
-      <a href="/module/{{ mod.id }}" class="module-nav-item {% if current_page == mod.id %}active{% endif %}">
-        <span style="font-size: 14px;">{{ mod.name }}</span>
-        {% if mod.status == 'gate_passed' %}
-          <span class="chip pass">PASSED</span>
-        {% elif mod.status == 'built' %}
-          <span class="chip built">BUILT</span>
-        {% elif mod.status == 'gate_failed' %}
-          <span class="chip fail">FAILED</span>
-        {% else %}
-          <span class="chip notbuilt">NOT BUILT</span>
-        {% endif %}
-      </a>
-    {% endfor %}
+    <a href="/module/quality_assessment" class="module-nav-item {% if current_page == 'quality_assessment' %}active{% endif %}">
+      <span>2. Health Score & Risks</span>
+      <span class="chip pass" style="font-size: 10px;">STEP 2</span>
+    </a>
 
-    <div class="sidebar-title" style="margin-top: 12px;">VALIDATION</div>
+    <a href="/module/pipeline" class="module-nav-item {% if current_page == 'pipeline' %}active{% endif %}">
+      <span>3. Treatment Plan</span>
+      <span class="chip pass" style="font-size: 10px;">STEP 3</span>
+    </a>
+
+    <a href="/module/multi_model" class="module-nav-item {% if current_page == 'multi_model' %}active{% endif %}">
+      <span>4. Model Gains & Recovery</span>
+      <span class="chip pass" style="font-size: 10px;">STEP 4</span>
+    </a>
+
+    <div class="sidebar-title" style="margin-top: 16px;">DIAGNOSTIC LABORATORIES</div>
+    <a href="/module/leakage" class="module-nav-item {% if current_page in ('leakage', 'leakage_advisor') %}active{% endif %}">
+      <span>🕵️ Data Leakage Hunter</span>
+      <span class="chip pass" style="font-size: 10px;">AUDIT</span>
+    </a>
+    <a href="/module/imbalance" class="module-nav-item {% if current_page in ('imbalance', 'imbalance_advisor') %}active{% endif %}">
+      <span>⚖️ Class Imbalance Lab</span>
+      <span class="chip pass" style="font-size: 10px;">AUDIT</span>
+    </a>
+    <a href="/module/nulls" class="module-nav-item {% if current_page in ('nulls', 'nulls_advisor') %}active{% endif %}">
+      <span>🏥 Missing Values Clinic</span>
+      <span class="chip pass" style="font-size: 10px;">AUDIT</span>
+    </a>
+    <a href="/module/outliers" class="module-nav-item {% if current_page in ('outliers', 'outliers_advisor') %}active{% endif %}">
+      <span>📊 Outliers & Extremes</span>
+      <span class="chip pass" style="font-size: 10px;">AUDIT</span>
+    </a>
+    <a href="/module/types" class="module-nav-item {% if current_page == 'types' %}active{% endif %}">
+      <span>🔤 Data Types & Dates</span>
+      <span class="chip pass" style="font-size: 10px;">AUDIT</span>
+    </a>
+    <a href="/module/duplicates" class="module-nav-item {% if current_page == 'duplicates' %}active{% endif %}">
+      <span>👥 Duplicates & Conflicts</span>
+      <span class="chip pass" style="font-size: 10px;">AUDIT</span>
+    </a>
+    <a href="/module/error_analysis" class="module-nav-item {% if current_page == 'error_analysis' %}active{% endif %}">
+      <span>🎯 Error Diagnostics</span>
+      <span class="chip pass" style="font-size: 10px;">EVAL</span>
+    </a>
+    <a href="/module/explainability" class="module-nav-item {% if current_page == 'explainability' %}active{% endif %}">
+      <span>🧠 Feature Attribution</span>
+      <span class="chip pass" style="font-size: 10px;">EVAL</span>
+    </a>
+
+    <div class="sidebar-title" style="margin-top: 16px;">ENGINE VERIFICATION</div>
     <a href="/bench" class="module-nav-item {% if current_page == 'bench' %}active{% endif %}">
-      <span>Test Bench</span>
-      <span class="chip pass">GATES</span>
+      <span>Automated Test Bench</span>
+      <span class="chip pass" style="font-size: 10px;">20 GATES</span>
     </a>
   </aside>
 
