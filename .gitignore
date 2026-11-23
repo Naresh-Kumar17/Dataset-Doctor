@@ -1,18 +1,67 @@
-.venv/
+# Byte-compiled / optimized / cache files
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+
+# Environments & Virtual Envs
+.venv/
+venv/
+ENV/
+env/
 .env
 .env.*
 !.env.example
+
+# Development, IDE & OS artifacts
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Secrets, Keys, Certificates
 *.pem
 *.key
 *.cert
 *.crt
 *.pfx
 secrets/
+
+# Data Uploads & Local Caches
 data/uploads/
-.pytest_cache/
-.DS_Store
 bench_results.json
 *.log
+logs/
 
+# Build & Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Generated Pipeline & Manifest Artifacts
+reproduce.py
+*_manifest.json
+custom_reproduce.py
+discharge_summary.md
+
+# Scratch, Temporary & Experimental files
+experiments/
+progress.txt
+docs/GITHUB_INSTRUCTIONS.md
+docs/issues/
