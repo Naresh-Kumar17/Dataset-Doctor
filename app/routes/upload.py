@@ -43,6 +43,69 @@ def get_upload_page(request: Request):
     )
 
 
+@router.get("/sample/{sample_name}")
+def get_load_sample_dataset(request: Request, sample_name: str):
+    """Loads a pre-configured real-world sample dataset with 1 click for instant demo and evaluation."""
+    root_data = Path(__file__).resolve().parent.parent.parent / "data"
+    sample_map = {
+        "leakage": (
+            root_data / "planted" / "leakage.csv",
+            "customer_churn_leakage.csv",
+            "target",
+            "classification",
+        ),
+        "nulls": (
+            root_data / "planted" / "nulls.csv",
+            "hospital_readmission_nulls.csv",
+            "target",
+            "classification",
+        ),
+        "imbalance": (
+            root_data / "planted" / "imbalance.csv",
+            "credit_card_fraud_imbalance.csv",
+            "target",
+            "classification",
+        ),
+        "accident": (
+            root_data / "samples" / "accident.csv",
+            "traffic_accident_severity.csv",
+            "injury_level",
+            "classification",
+        ),
+    }
+
+    if sample_name not in sample_map:
+        return RedirectResponse(url="/", status_code=303)
+
+    csv_path, display_name, target_col, task_type = sample_map[sample_name]
+    if not csv_path.exists():
+        return RedirectResponse(url="/", status_code=303)
+
+    with open(csv_path, "rb") as f:
+        raw_bytes = f.read()
+
+    df, metadata = load_csv(raw_bytes, filename=display_name)
+    profile = profile_dataframe(df)
+
+    session = create_session()
+    session.df = df
+    session.metadata = metadata
+    session.profile = profile
+    session.target_column = target_col if target_col in df.columns else profile.get("suggested_target")
+    session.task_type = task_type
+
+    response = RedirectResponse(url="/profile?locked=1&sample=" + sample_name, status_code=303)
+    response.set_cookie(
+        key="session_id",
+        value=session.session_id,
+        max_age=3600,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+    )
+    return response
+
+
 @router.post("/upload")
 async def post_upload_file(request: Request, file: UploadFile = File(...)):
     # 1. IP Rate Limiting check

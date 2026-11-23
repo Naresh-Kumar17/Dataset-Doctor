@@ -89,6 +89,101 @@
     <span>Max file size: {{ max_file_size_mb or 50 }} MB</span>
     <span>In-memory sessions &bull; Auto-deleted after 1 hour</span>
   </div>
+
+  <!-- 1-Click Real-World Sample Datasets Section -->
+  <div style="margin-top: 40px; padding-top: 24px; border-top: 3px dashed #bbb;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+      <div>
+        <h3 style="margin: 0; font-size: 18px; text-transform: uppercase; letter-spacing: 0.5px;">
+          ⚡ OR TRY WITH REAL-WORLD DATA TRAPS (1-CLICK DEMO)
+        </h3>
+        <p style="margin: 4px 0 0; font-size: 13px; color: #555;">
+          No file on hand? Click any sample scenario below to test the diagnostic engine immediately.
+        </p>
+      </div>
+      <span class="chip pass" style="font-size: 11px; padding: 4px 8px;">ZERO UPLOAD REQUIRED</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px;">
+      
+      <!-- Sample 1: Data Leakage -->
+      <div class="card" style="margin: 0; padding: 18px; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: #FFFDF5; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 800; font-size: 15px;">🕵️ CUSTOMER CHURN</span>
+            <span class="chip high" style="font-size: 10px;">DATA LEAKAGE</span>
+          </div>
+          <p style="font-size: 13px; color: #444; margin: 0 0 10px; line-height: 1.4;">
+            Contains silent post-outcome target clones, inverted copies, and ID sequence leaks that fabricate fake 100% test accuracy.
+          </p>
+          <div style="font-size: 11px; color: #666; font-family: 'JetBrains Mono', monospace; margin-bottom: 14px;">
+            Flaws: 5 Leaking Columns • Target Copies • ID Index
+          </div>
+        </div>
+        <a href="/sample/leakage" class="btn" style="width: 100%; justify-content: center; background: #FF6B9D; color: #000; font-weight: 800; font-size: 13px; padding: 10px;">
+          LOAD LEAKAGE DATASET &rarr;
+        </a>
+      </div>
+
+      <!-- Sample 2: Missing Values -->
+      <div class="card" style="margin: 0; padding: 18px; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: #FFFDF5; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 800; font-size: 15px;">🏥 HOSPITAL READMISSION</span>
+            <span class="chip built" style="font-size: 10px;">MISSING VALUES</span>
+          </div>
+          <p style="font-size: 13px; color: #444; margin: 0 0 10px; line-height: 1.4;">
+            Plagued by real-world data traps: hidden string tokens (<code>?</code>, <code>N/A</code>), -999 sentinels, and target-linked missingness.
+          </p>
+          <div style="font-size: 11px; color: #666; font-family: 'JetBrains Mono', monospace; margin-bottom: 14px;">
+            Flaws: 14% Nulls • Hidden Tokens • -999 Sentinels
+          </div>
+        </div>
+        <a href="/sample/nulls" class="btn" style="width: 100%; justify-content: center; background: #6BCBFF; color: #000; font-weight: 800; font-size: 13px; padding: 10px;">
+          LOAD HOSPITAL DATASET &rarr;
+        </a>
+      </div>
+
+      <!-- Sample 3: Class Imbalance -->
+      <div class="card" style="margin: 0; padding: 18px; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: #FFFDF5; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 800; font-size: 15px;">💳 CREDIT CARD FRAUD</span>
+            <span class="chip high" style="font-size: 10px;">CLASS IMBALANCE</span>
+          </div>
+          <p style="font-size: 13px; color: #444; margin: 0 0 10px; line-height: 1.4;">
+            Severe 99:1 class imbalance triggering the Accuracy Paradox. Demonstrates train-only resampling without test set corruption.
+          </p>
+          <div style="font-size: 11px; color: #666; font-family: 'JetBrains Mono', monospace; margin-bottom: 14px;">
+            Flaws: 99:1 Ratio • Accuracy Illusion • Rare Extremes
+          </div>
+        </div>
+        <a href="/sample/imbalance" class="btn" style="width: 100%; justify-content: center; background: #FFD93D; color: #000; font-weight: 800; font-size: 13px; padding: 10px;">
+          LOAD FRAUD DATASET &rarr;
+        </a>
+      </div>
+
+      <!-- Sample 4: Traffic Accident -->
+      <div class="card" style="margin: 0; padding: 18px; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: #FFFDF5; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 800; font-size: 15px;">🚗 TRAFFIC ACCIDENTS</span>
+            <span class="chip pass" style="font-size: 10px;">DATA TYPES & DATES</span>
+          </div>
+          <p style="font-size: 13px; color: #444; margin: 0 0 10px; line-height: 1.4;">
+            Mixed string numbers ($1,200, 15%), ambiguous date formats (<code>DD/MM</code> vs <code>MM/DD</code>), and zero-variance constants.
+          </p>
+          <div style="font-size: 11px; color: #666; font-family: 'JetBrains Mono', monospace; margin-bottom: 14px;">
+            Flaws: Currency Symbols • Ambiguous Dates • Dirty Types
+          </div>
+        </div>
+        <a href="/sample/accident" class="btn" style="width: 100%; justify-content: center; background: #B197FC; color: #000; font-weight: 800; font-size: 13px; padding: 10px;">
+          LOAD ACCIDENT DATASET &rarr;
+        </a>
+      </div>
+
+    </div>
+  </div>
 </div>
 
 <script>
