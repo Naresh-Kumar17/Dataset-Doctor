@@ -436,3 +436,28 @@ def test_consultation_flow_ctas(auth_client):
     assert resp_pipeline.status_code == 200
     assert "PATIENT CONSULTATION • STEP 4 OF 4" in resp_pipeline.text
     assert "/module/multi_model" in resp_pipeline.text
+
+
+def test_ai_doctor_web_endpoint(auth_client):
+    """Verify /api/ai-consultation endpoint executes consultation and returns report JSON."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.post("/api/ai-consultation", json={"provider": "offline"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    report = data["report"]
+    assert "patient_status" in report
+    assert "clinical_impression" in report
+    assert "survival_forecast" in report
+    assert "CLINICAL CONSULTATION & DISCHARGE SUMMARY" in report["discharge_letter_markdown"]
+
+
+def test_quality_assessment_renders_ai_doctor_card(auth_client):
+    """Verify Quality Assessment UI page renders the AI Doctor second opinion card."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.get("/module/quality_assessment")
+    assert resp.status_code == 200
+    assert "AI Doctor's Second Opinion & Diagnostic Letter" in resp.text
+    assert "AUTONOMOUS CLINICAL INTELLIGENCE LAYER" in resp.text
+    assert "PRODUCTION SURVIVAL FORECAST" in resp.text
+    assert "FORMAL PHYSICIAN'S DISCHARGE LETTER" in resp.text

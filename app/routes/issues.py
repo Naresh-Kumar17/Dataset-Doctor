@@ -4,7 +4,7 @@ Renders individual issue module status, detection results, and advisor cards.
 """
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from doctor.registry import get_all_modules, get_module
@@ -200,6 +200,7 @@ def get_module_page(module_id: str, request: Request):
     split_demo = None
     pipeline_data = None
     quality_report = None
+    ai_consultation = None
     experiment_result = None
     error_profile = None
     attribution_profile = None
@@ -435,11 +436,23 @@ def get_module_page(module_id: str, request: Request):
     elif module_id == "quality_assessment" and df is not None:
         try:
             from doctor.quality import DataQualityAssessor
+            from doctor.ai_consultant import AIConsultant
             assessor = DataQualityAssessor()
             decisions = session.decisions if (session and hasattr(session, "decisions")) else None
             quality_report = assessor.assess(df, target_column=target_col, task_type=task_type, decisions=decisions)
+            consultant = AIConsultant()
+            profile_dict = session.profile if session else None
+            ai_consultation = consultant.consult(
+                df=df,
+                profile=profile_dict,
+                quality_assessment=quality_report,
+                target_column=target_col,
+                provider="offline",
+            )
         except Exception:
+            logger.exception("Error in quality_assessment / ai_consultation")
             quality_report = None
+            ai_consultation = None
 
     elif module_id == "multi_model" and df is not None:
         try:
@@ -542,6 +555,7 @@ def get_module_page(module_id: str, request: Request):
             "split_demo": split_demo,
             "pipeline_data": pipeline_data,
             "quality_report": quality_report,
+            "ai_consultation": ai_consultation,
             "experiment_result": experiment_result,
             "error_profile": error_profile,
             "attribution_profile": attribution_profile,
@@ -550,3 +564,50 @@ def get_module_page(module_id: str, request: Request):
             "format_badge": badge_formatter,
         }
     )
+
+
+@router.post("/api/ai-consultation")
+async def post_ai_consultation(request: Request):
+    """Interactive endpoint to trigger fresh AI Doctor consultation with custom provider/key."""
+    session_id = request.cookies.get("session_id")
+    session = get_session(session_id)
+    if not session or session.df is None:
+        from doctor.loader import load_csv
+        if SAMPLE_LEAKAGE.exists():
+            df, _ = load_csv(str(SAMPLE_LEAKAGE), filename="leakage.csv")
+            target_col = "target"
+        else:
+            return JSONResponse(status_code=400, content={"error": "No dataset uploaded or found in session."})
+    else:
+        df = session.df
+        target_col = session.target_column
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    provider = body.get("provider", "auto")
+    api_key = body.get("api_key")
+
+    from doctor.quality import DataQualityAssessor
+    from doctor.ai_consultant import AIConsultant
+
+    assessor = DataQualityAssessor()
+    decisions = getattr(session, "decisions", None)
+    quality_report = assessor.assess(df, target_column=target_col, decisions=decisions)
+
+    consultant = AIConsultant()
+    profile_dict = session.profile if session else None
+    report = consultant.consult(
+        df=df,
+        profile=profile_dict,
+        quality_assessment=quality_report,
+        target_column=target_col,
+        provider=provider,
+        api_key_override=api_key if api_key else None,
+    )
+
+    return JSONResponse(status_code=200, content={"status": "success", "report": report.to_dict()})
+

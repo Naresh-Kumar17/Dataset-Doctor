@@ -1433,6 +1433,152 @@
         </div>
       </div>
 
+      <!-- AI Doctor's Second Opinion & Clinical Consultation Card -->
+      <div class="card" id="ai-doctor-card" style="margin-top: 28px; margin-bottom: 24px; border: 3px solid #000; box-shadow: 6px 6px 0px #000; background: #fff;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; border-bottom: 3px solid #000; padding: 16px 20px; background: #fdf6e2;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 44px; height: 44px; background: #007a3d; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; border: 2px solid #000; border-radius: 50%;">
+              🩺
+            </div>
+            <div>
+              <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #855d00;">
+                AUTONOMOUS CLINICAL INTELLIGENCE LAYER
+              </div>
+              <div style="font-size: 18px; font-weight: 900; color: #000;">
+                AI Doctor's Second Opinion & Diagnostic Letter
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span id="ai-provider-badge" class="badge" style="background: #e8f4fd; color: #005a9c; border: 1.5px solid #000; font-weight: 700; padding: 4px 10px;">
+              {{ ai_consultation.provider if ai_consultation else 'Built-In Expert Synthesizer' }}
+            </span>
+            <span id="ai-status-badge" class="chip {% if ai_consultation and ai_consultation.patient_status in ('STABLE', 'EXCELLENT') %}pass{% elif ai_consultation and ai_consultation.patient_status == 'GUARDED' %}built{% else %}fail{% endif %}" style="font-weight: 800; font-size: 12px;">
+              {{ ai_consultation.patient_status if ai_consultation else 'EVALUATING' }}
+            </span>
+          </div>
+        </div>
+
+        <div style="padding: 20px;">
+          <!-- Controls bar -->
+          <div style="background: #fafafa; border: 2px solid #000; border-radius: 4px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <label for="ai-provider-select" style="font-size: 12px; font-weight: 800;">PROVIDER:</label>
+              <select id="ai-provider-select" class="form-select" style="padding: 6px 10px; font-size: 12px; font-weight: 700; border: 2px solid #000;">
+                <option value="offline">Built-In Expert Reasoner (Offline, Instant)</option>
+                <option value="gemini">Google Gemini 1.5 Flash</option>
+                <option value="openai">OpenAI GPT-4o-mini</option>
+                <option value="auto">Auto (Env Key Fallback)</option>
+              </select>
+              <input type="password" id="ai-api-key" placeholder="Optional API Key override" style="padding: 6px 10px; font-size: 12px; border: 2px solid #000; width: 190px;" />
+            </div>
+            <div>
+              <button id="ai-consult-btn" class="btn primary" onclick="runAIConsultation()" style="font-size: 12px; font-weight: 800; padding: 8px 16px; box-shadow: 2px 2px 0 #000;">
+                🧠 RE-RUN AI CONSULTATION
+              </button>
+            </div>
+          </div>
+
+          <!-- Clinical Vitals Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px;">
+            <div style="background: #fdfdfd; border: 2px solid #000; padding: 14px 18px; border-radius: 4px; border-left: 6px solid #007a3d;">
+              <div style="font-size: 11px; font-weight: 800; color: #555; text-transform: uppercase;">CLINICAL IMPRESSION</div>
+              <div id="ai-clinical-impression" style="font-size: 14px; font-weight: 700; color: #111; margin-top: 6px; line-height: 1.4;">
+                {{ ai_consultation.clinical_impression if ai_consultation else 'Synthesizing data vitals...' }}
+              </div>
+            </div>
+            <div style="background: #fdfdfd; border: 2px solid #000; padding: 14px 18px; border-radius: 4px; border-left: 6px solid #b00020;">
+              <div style="font-size: 11px; font-weight: 800; color: #555; text-transform: uppercase;">PRODUCTION SURVIVAL FORECAST</div>
+              <div id="ai-survival-forecast" style="font-size: 14px; font-weight: 700; color: #111; margin-top: 6px; line-height: 1.4;">
+                {{ ai_consultation.survival_forecast if ai_consultation else 'Calculating risk curve...' }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Semantic Leakage Scan Table -->
+          {% if ai_consultation and ai_consultation.semantic_leakage_review %}
+            <div style="margin-bottom: 20px;">
+              <div style="font-size: 13px; font-weight: 800; text-transform: uppercase; margin-bottom: 8px;">
+                🔍 SEMANTIC LEAKAGE & POST-EVENT FEATURE AUDIT
+              </div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 2px solid #000;" id="ai-leakage-table">
+                <thead>
+                  <tr style="background: #f0f0f0; border-bottom: 2px solid #000;">
+                    <th style="padding: 8px; text-align: left;">SUSPICIOUS FEATURE</th>
+                    <th style="padding: 8px; text-align: left;">RISK</th>
+                    <th style="padding: 8px; text-align: left;">PATHOLOGICAL REASON</th>
+                  </tr>
+                </thead>
+                <tbody id="ai-leakage-tbody">
+                  {% for l in ai_consultation.semantic_leakage_review %}
+                    <tr style="border-bottom: 1px solid #ddd;">
+                      <td style="padding: 8px; font-family: monospace; font-weight: 700;">{{ l.column }}</td>
+                      <td style="padding: 8px;"><span class="badge high">{{ l.risk_level }}</span></td>
+                      <td style="padding: 8px; color: #333;">{{ l.rationale }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+
+          <!-- Full Physician's Discharge Summary Letter -->
+          <div style="margin-top: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <div style="font-size: 13px; font-weight: 800; text-transform: uppercase;">
+                📋 FORMAL PHYSICIAN'S DISCHARGE LETTER
+              </div>
+              <button class="btn secondary sm" onclick="copyDischargeLetter()" style="font-size: 11px; padding: 4px 10px;">
+                📋 COPY LETTER
+              </button>
+            </div>
+            <pre id="ai-discharge-letter" style="background: #1e1e1e; color: #ececec; padding: 18px; border: 2px solid #000; border-radius: 4px; font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; max-height: 380px; overflow-y: auto;">{{ ai_consultation.discharge_letter_markdown if ai_consultation else 'Generating clinical summary...' }}</pre>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        async function runAIConsultation() {
+          const btn = document.getElementById('ai-consult-btn');
+          const provider = document.getElementById('ai-provider-select').value;
+          const apiKey = document.getElementById('ai-api-key').value;
+          btn.disabled = true;
+          btn.innerText = '🧠 CONSULTING AI DOCTOR...';
+
+          try {
+            const resp = await fetch('/api/ai-consultation', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ provider: provider, api_key: apiKey })
+            });
+            const data = await resp.json();
+            if (data.status === 'success') {
+              const r = data.report;
+              document.getElementById('ai-clinical-impression').innerText = r.clinical_impression;
+              document.getElementById('ai-survival-forecast').innerText = r.survival_forecast;
+              document.getElementById('ai-discharge-letter').innerText = r.discharge_letter_markdown;
+              document.getElementById('ai-provider-badge').innerText = r.provider;
+              const statusBadge = document.getElementById('ai-status-badge');
+              statusBadge.innerText = r.patient_status;
+              statusBadge.className = 'chip ' + (['STABLE', 'EXCELLENT'].includes(r.patient_status) ? 'pass' : (r.patient_status === 'GUARDED' ? 'built' : 'fail'));
+            } else {
+              alert('AI Consultation notice: ' + (data.error || 'Check server logs'));
+            }
+          } catch (e) {
+            alert('Failed to connect to AI consultant: ' + e);
+          } finally {
+            btn.disabled = false;
+            btn.innerText = '🧠 RE-RUN AI CONSULTATION';
+          }
+        }
+
+        function copyDischargeLetter() {
+          const text = document.getElementById('ai-discharge-letter').innerText;
+          navigator.clipboard.writeText(text);
+          alert('Physician\'s Discharge Summary copied to clipboard!');
+        }
+      </script>
+
       <!-- Patient Consultation Step 3 CTA -->
       <div style="background: linear-gradient(135deg, #fef6e9 0%, #fee8cc 100%); border: 3px solid #000; box-shadow: 4px 4px 0px #000; border-radius: 6px; padding: 18px 24px; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
         <div>
