@@ -15,8 +15,31 @@
       AUTHENTICATION
     </h2>
     <p style="font-size: 14px; font-weight: 500; color: #444; margin: 0 0 20px;">
-      This workspace is restricted during active research. Please authenticate to proceed.
+      Dataset Doctor: Honest, leak-free tabular data preparation & ML diagnostic platform.
     </p>
+
+    <!-- 1-Click Guest Access for LinkedIn Viewers & External Visitors -->
+    <div style="background: #E8FFF5; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); padding: 18px 16px; margin-bottom: 24px; text-align: center;">
+      <div style="font-weight: 800; font-size: 14px; text-transform: uppercase; color: #027A48; margin-bottom: 6px;">
+        👋 Visiting from LinkedIn or Portfolio?
+      </div>
+      <p style="font-size: 13px; color: #333; margin: 0 0 14px; line-height: 1.4;">
+        Explore the live platform, run diagnostic audits, and inspect real-world datasets with <strong>zero sign-in required</strong>.
+      </p>
+      <form method="post" action="/login/guest" style="margin: 0;">
+        <input type="hidden" name="next_url" value="{{ next_url or '/' }}">
+        <button type="submit" class="btn" style="width: 100%; background: #00E599; font-weight: 800; font-size: 15px; padding: 12px; justify-content: center; letter-spacing: 0.5px;">
+          🚀 LAUNCH 1-CLICK INSTANT DEMO &rarr;
+        </button>
+      </form>
+    </div>
+
+    <div style="position: relative; text-align: center; margin: 20px 0 22px;">
+      <hr style="border: none; border-top: 2px dashed #bbb; margin: 0;">
+      <span style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--paper); padding: 0 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #777;">
+        OR AUTHENTICATE WITH CREDENTIALS
+      </span>
+    </div>
 
     {% if error %}
       <div class="banner danger" style="padding: 10px 14px; font-size: 13px; margin-bottom: 20px;">

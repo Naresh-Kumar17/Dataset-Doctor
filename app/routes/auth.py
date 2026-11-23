@@ -109,6 +109,39 @@ async def post_login(
     return response
 
 
+@router.post("/login/guest")
+def post_guest_login(request: Request, next_url: str = Form("/")):
+    """Instant 1-click guest authentication for recruiters, demo visitors, and public showcases."""
+    token = create_authenticated_session()
+    safe_next = next_url if is_safe_redirect_url(next_url) else "/"
+    response = RedirectResponse(url=safe_next, status_code=303)
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=token,
+        max_age=AUTH_TOKEN_EXPIRY_HOURS * 3600,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+    )
+    return response
+
+
+@router.get("/demo")
+def get_demo_access(request: Request):
+    """Direct 1-click URL link for LinkedIn viewers & demo visitors."""
+    token = create_authenticated_session()
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=token,
+        max_age=AUTH_TOKEN_EXPIRY_HOURS * 3600,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+    )
+    return response
+
+
 @router.get("/logout")
 def get_logout(request: Request):
     token = get_auth_token_from_request(request)
