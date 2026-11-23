@@ -1313,6 +1313,26 @@
         </div>
         <pre id="reproduce-code-block" style="background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 4px; border: 2px solid #000; overflow-x: auto; font-size: 12px; font-family: monospace; max-height: 280px;">{{ pipeline_data.reproduce_code }}</pre>
       </div>
+
+      <!-- Patient Consultation Step 4 CTA -->
+      <div style="background: linear-gradient(135deg, #eafaf1 0%, #cbf3db 100%); border: 3px solid #000; box-shadow: 4px 4px 0px #000; border-radius: 6px; padding: 18px 24px; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+        <div>
+          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #006030; margin-bottom: 4px;">
+            PATIENT CONSULTATION • STEP 4 OF 4
+          </div>
+          <div style="font-size: 18px; font-weight: 900; color: #111;">
+            Treatment Pipeline Assembled & Ready!
+          </div>
+          <div style="font-size: 13px; color: #333; margin-top: 4px;">
+            Benchmark model performance gains: Compare Raw vs Treated data across multiple classifiers with leak-free CV.
+          </div>
+        </div>
+        <div>
+          <a href="/module/multi_model" class="btn primary" style="font-size: 14px; font-weight: 800; padding: 12px 22px; text-decoration: none; box-shadow: 3px 3px 0 #000; white-space: nowrap; background: #007a3d; color: #fff; display: inline-block;">
+            📈 BENCHMARK MODEL GAINS &rarr;
+          </a>
+        </div>
+      </div>
     {% endif %}
 
   {% elif module.id == 'quality_assessment' %}
@@ -1412,6 +1432,26 @@
           </table>
         </div>
       </div>
+
+      <!-- Patient Consultation Step 3 CTA -->
+      <div style="background: linear-gradient(135deg, #fef6e9 0%, #fee8cc 100%); border: 3px solid #000; box-shadow: 4px 4px 0px #000; border-radius: 6px; padding: 18px 24px; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+        <div>
+          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #9c4f00; margin-bottom: 4px;">
+            PATIENT CONSULTATION • STEP 3 OF 4
+          </div>
+          <div style="font-size: 18px; font-weight: 900; color: #111;">
+            Diagnosis Complete (Score: {{ quality_report.overall_score }}/100) — Ready for Treatment Plan
+          </div>
+          <div style="font-size: 13px; color: #333; margin-top: 4px;">
+            Apply surgical auto-cleaning, imputation, leakage insulation, and generate reproducible treatment recipes.
+          </div>
+        </div>
+        <div>
+          <a href="/module/pipeline" class="btn primary" style="font-size: 14px; font-weight: 800; padding: 12px 22px; text-decoration: none; box-shadow: 3px 3px 0 #000; white-space: nowrap; background: #c46800; color: #fff; display: inline-block;">
+            💊 PROCEED TO TREATMENT PLAN &rarr;
+          </a>
+        </div>
+      </div>
     {% endif %}
 
   {% elif module.id == 'multi_model' %}
@@ -1499,6 +1539,34 @@
               {% endfor %}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Patient Consultation Complete Banner -->
+      <div style="background: linear-gradient(135deg, #f0f4ff 0%, #e2eafc 100%); border: 3px solid #000; box-shadow: 4px 4px 0px #000; border-radius: 6px; padding: 20px 24px; margin-top: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <div style="display: inline-block; background: #007a3d; color: #fff; font-size: 11px; font-weight: 900; padding: 3px 8px; border-radius: 3px; letter-spacing: 0.8px; margin-bottom: 6px;">
+              PATIENT RECOVERED • 4-STEP CYCLE COMPLETE
+            </div>
+            <div style="font-size: 20px; font-weight: 900; color: #111;">
+              🎉 Full Diagnostic & Treatment Protocol Completed!
+            </div>
+            <div style="font-size: 13px; color: #444; margin-top: 4px; max-width: 650px;">
+              Your dataset went from raw, corrupted/leaky data to a validated clean dataset with audited model lift. You can now download the treatment recipe, inspect error slices, or verify automated gates.
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="/module/pipeline" class="btn secondary" style="font-size: 13px; font-weight: 700; padding: 10px 18px; text-decoration: none; box-shadow: 2px 2px 0 #000;">
+              💾 GET REPRODUCE.PY SCRIPT
+            </a>
+            <a href="/module/error_analysis" class="btn secondary" style="font-size: 13px; font-weight: 700; padding: 10px 18px; text-decoration: none; box-shadow: 2px 2px 0 #000;">
+              🔍 INSPECT ERROR SLICES
+            </a>
+            <a href="/bench" class="btn primary" style="font-size: 13px; font-weight: 800; padding: 10px 18px; text-decoration: none; box-shadow: 2px 2px 0 #000;">
+              🏆 VERIFY 20 ENGINE GATES
+            </a>
+          </div>
         </div>
       </div>
     {% endif %}

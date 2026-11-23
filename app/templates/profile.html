@@ -7,12 +7,32 @@
   <h2>DATASET PROFILE & OVERVIEW</h2>
 
   {% if target_locked %}
-    <div class="banner success">
+    <div class="banner success" style="margin-bottom: 16px;">
       {% if target_column %}
         TARGET LOCKED: <strong>{{ target_column }}</strong> (Task: <strong>{{ task_type }}</strong>)
       {% else %}
         TASK CONFIGURED: <strong>UNSUPERVISED / PURE DATA CLEANING</strong> (No Target Column)
       {% endif %}
+    </div>
+
+    <!-- Patient Consultation Step 2 Callout Banner -->
+    <div style="background: linear-gradient(135deg, #e8f4fd 0%, #d4eafc 100%); border: 3px solid #000; box-shadow: 4px 4px 0px #000; border-radius: 6px; padding: 18px 22px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #005a9c; margin-bottom: 4px;">
+          PATIENT CONSULTATION • STEP 2 OF 4
+        </div>
+        <div style="font-size: 18px; font-weight: 900; color: #111;">
+          Dataset Intake Complete! Target Locked: <span style="background: #fff; padding: 2px 8px; border: 1.5px solid #000; border-radius: 3px;">{{ target_column or 'Unsupervised' }}</span>
+        </div>
+        <div style="font-size: 13px; color: #333; margin-top: 4px;">
+          Run our 6-Domain Quality Check & Readiness Scoring across leakage, nulls, outliers, and class imbalance.
+        </div>
+      </div>
+      <div>
+        <a href="/module/quality_assessment" class="btn primary" style="font-size: 14px; font-weight: 800; padding: 12px 22px; text-decoration: none; box-shadow: 3px 3px 0 #000; white-space: nowrap; display: inline-block;">
+          🩺 RUN FULL DATASET HEALTH CHECK &rarr;
+        </a>
+      </div>
     </div>
   {% endif %}
 

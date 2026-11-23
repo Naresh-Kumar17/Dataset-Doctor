@@ -361,3 +361,78 @@ def test_explainability_module_page(auth_client):
     assert "PREDICTIVE IMPORTANCE ≠ REAL-WORLD CAUSATION" in response.text
     assert "VALIDATION PERMUTATION IMPORTANCE VS NATIVE IMPURITY" in response.text
     assert "FEATURE PRUNING ADVISOR RECOMMENDATIONS" in response.text
+
+
+def test_guest_login_route():
+    """Verify 1-click guest login logs in without credentials and redirects to home."""
+    c = TestClient(app)
+    response = c.post("/login/guest", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+    assert AUTH_COOKIE_NAME in response.cookies
+
+
+def test_demo_route():
+    """Verify 1-click demo GET route logs in immediately and redirects to home."""
+    c = TestClient(app)
+    response = c.get("/demo", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+    assert AUTH_COOKIE_NAME in response.cookies
+
+
+def test_sample_dataset_route_leakage(auth_client):
+    """Verify 1-click pre-loaded sample dataset loads leakage.csv and configures target."""
+    response = auth_client.get("/sample/leakage", follow_redirects=False)
+    assert response.status_code == 303
+    assert "/profile" in response.headers["location"]
+
+    # Follow redirect to /profile
+    profile_resp = auth_client.get("/profile")
+    assert profile_resp.status_code == 200
+    assert "TARGET LOCKED" in profile_resp.text
+    assert "target" in profile_resp.text
+    assert "PATIENT CONSULTATION • STEP 2 OF 4" in profile_resp.text
+    assert "RUN FULL DATASET HEALTH CHECK" in profile_resp.text
+
+
+def test_sample_dataset_route_accident(auth_client):
+    """Verify 1-click pre-loaded sample dataset loads accident.csv."""
+    response = auth_client.get("/sample/accident", follow_redirects=False)
+    assert response.status_code == 303
+    assert "/profile" in response.headers["location"]
+
+    profile_resp = auth_client.get("/profile")
+    assert profile_resp.status_code == 200
+    assert "severe_accident" in profile_resp.text
+
+
+def test_sample_dataset_route_unknown_redirects_home(auth_client):
+    """Verify unknown sample name safely redirects to home."""
+    response = auth_client.get("/sample/nonexistent_sample", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+
+
+def test_consultation_flow_ctas(auth_client):
+    """Verify the 4-step consultation CTAs render across profile, quality, and pipeline."""
+    # Load leakage sample to have active state
+    auth_client.get("/sample/leakage", follow_redirects=False)
+
+    # 1. Profile has Step 2 CTA
+    resp_profile = auth_client.get("/profile")
+    assert resp_profile.status_code == 200
+    assert "PATIENT CONSULTATION • STEP 2 OF 4" in resp_profile.text
+    assert "/module/quality_assessment" in resp_profile.text
+
+    # 2. Quality assessment has Step 3 CTA
+    resp_quality = auth_client.get("/module/quality_assessment")
+    assert resp_quality.status_code == 200
+    assert "PATIENT CONSULTATION • STEP 3 OF 4" in resp_quality.text
+    assert "/module/pipeline" in resp_quality.text
+
+    # 3. Pipeline has Step 4 CTA
+    resp_pipeline = auth_client.get("/module/pipeline")
+    assert resp_pipeline.status_code == 200
+    assert "PATIENT CONSULTATION • STEP 4 OF 4" in resp_pipeline.text
+    assert "/module/multi_model" in resp_pipeline.text
