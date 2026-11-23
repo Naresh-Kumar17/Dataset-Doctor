@@ -56,7 +56,7 @@ app.add_middleware(
 # -------------------------------------------------------------------------
 # Security & Authentication Middleware
 # -------------------------------------------------------------------------
-PUBLIC_EXACT_PATHS = {"/login", "/logout", "/health"}
+PUBLIC_EXACT_PATHS = {"/login", "/login/guest", "/demo", "/logout", "/health"}
 PUBLIC_PREFIXES = ("/static",)
 
 

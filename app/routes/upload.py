@@ -69,7 +69,7 @@ def get_load_sample_dataset(request: Request, sample_name: str):
         "accident": (
             root_data / "samples" / "accident.csv",
             "traffic_accident_severity.csv",
-            "injury_level",
+            "severe_accident",
             "classification",
         ),
     }

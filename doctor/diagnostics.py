@@ -67,9 +67,10 @@ class ModelErrorAnalyzer:
 
         # Align columns if feature_columns is provided
         if feature_columns:
-            for col in feature_columns:
-                if col not in X_encoded.columns:
-                    X_encoded[col] = 0
+            missing_cols = [c for c in feature_columns if c not in X_encoded.columns]
+            if missing_cols:
+                missing_df = pd.DataFrame(0, index=X_encoded.index, columns=missing_cols)
+                X_encoded = pd.concat([X_encoded, missing_df], axis=1)
             X_encoded = X_encoded[feature_columns]
 
         X_test = X_encoded.values

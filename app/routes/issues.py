@@ -461,13 +461,27 @@ def get_module_page(module_id: str, request: Request):
             tr = df.iloc[:n_train].copy()
             te = df.iloc[n_train:].copy()
             target = target_col or df.columns[-1]
+
+            # Ensure binary numeric target for error analysis
+            y_raw = tr[target].copy()
+            if set(y_raw.unique()) != {0, 1}:
+                pos_val = y_raw.value_counts().index[-1]
+                tr[target] = (tr[target] == pos_val).astype(int)
+                te[target] = (te[target] == pos_val).astype(int)
+
             X_tr = pd.get_dummies(tr.drop(columns=[target]), drop_first=True)
+            for col in X_tr.columns:
+                if X_tr[col].isna().any():
+                    fill_v = X_tr[col].median() if pd.api.types.is_numeric_dtype(X_tr[col]) else 0
+                    X_tr[col] = X_tr[col].fillna(fill_v)
+
             y_tr = tr[target].values
             clf = RandomForestClassifier(n_estimators=30, max_depth=4, random_state=42)
             clf.fit(X_tr.values, y_tr)
             analyzer = ModelErrorAnalyzer(top_n_errors=5)
             error_profile = analyzer.analyze(clf, te, target_column=target, feature_columns=list(X_tr.columns))
         except Exception:
+            logger.exception("Error running error_analysis module")
             error_profile = None
 
     elif module_id == "explainability" and df is not None:
