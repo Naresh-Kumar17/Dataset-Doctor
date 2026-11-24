@@ -2637,10 +2637,11 @@ def run_mcp_gate() -> tuple[bool, dict]:
         "doctor_apply_remediation",
         "doctor_evaluate_baseline",
         "doctor_export_reproduce",
+        "doctor_ai_consultation",
     ]
-    chk_tools = bool(all(exp in tool_names for exp in expected_tools) and len(tools) == 6)
+    chk_tools = bool(all(exp in tool_names for exp in expected_tools) and len(tools) == len(expected_tools))
     details["checks"].append({
-        "name": "tools/list advertises all 6 specialized Dataset Doctor tools with valid schemas",
+        "name": f"tools/list advertises all {len(expected_tools)} specialized Dataset Doctor tools with valid schemas",
         "passed": chk_tools,
     })
     if chk_tools: details["found"] += 1
