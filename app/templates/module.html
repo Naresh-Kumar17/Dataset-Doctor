@@ -1688,6 +1688,209 @@
         </div>
       </div>
 
+      <!-- Phase 21: Production Crash & Data Autopsy Simulator Workbench -->
+      <div class="card" style="margin-top: 28px; margin-bottom: 24px; border: 3px solid #000; box-shadow: 5px 5px 0px #000;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+          <div>
+            <div style="display: inline-flex; align-items: center; gap: 6px; background: #dc2626; color: #fff; font-size: 11px; font-weight: 900; padding: 4px 10px; border-radius: 4px; letter-spacing: 0.8px; margin-bottom: 8px;">
+              <span>💥</span> HARDENED STRESS LAB • PRODUCTION DRIFT AUTOPSY
+            </div>
+            <h3 class="card-title" style="margin: 0; font-size: 18px;">
+              PRODUCTION CRASH & DATA AUTOPSY SIMULATOR
+            </h3>
+            <p style="font-size: 13px; color: #555; margin-top: 6px; max-width: 760px; line-height: 1.45;">
+              Stress-test trained ML models against real-world production data failure modes on untouched test data:
+              <strong>Covariate Drift (+1.5σ)</strong>, <strong>Upstream Outages (NaN bursts)</strong>, <strong>Zero-Day Category Shocks</strong>, and <strong>Extreme Tail Surges</strong>.
+              Quantifies model crash velocity and validates pipeline survival advantage.
+            </p>
+          </div>
+          <div style="text-align: right;">
+            {% if autopsy_report %}
+              <div id="crash-verdict-badge" style="display: inline-block; background: #007a3d; color: #fff; font-size: 13px; font-weight: 900; padding: 6px 14px; border-radius: 4px; border: 2px solid #000; box-shadow: 2px 2px 0 #000;">
+                🛡️ {{ autopsy_report.overall_verdict }} (+{{ autopsy_report.overall_resilience_gain_pct }}% NET RESILIENCE)
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if autopsy_report %}
+          <!-- Executive Autopsy Callout -->
+          <div style="background: #f8fafc; border-left: 6px solid #2563eb; padding: 14px 18px; margin-bottom: 20px; border-top: 1px solid #cbd5e1; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; border-radius: 4px;">
+            <div style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase; margin-bottom: 4px;">
+              CLINICAL AUTOPSY EXECUTIVE SUMMARY
+            </div>
+            <div id="crash-executive-summary" style="font-size: 13px; color: #1e293b; line-height: 1.5; font-weight: 500;">
+              {{ autopsy_report.executive_autopsy_summary }}
+            </div>
+          </div>
+
+          <!-- Stress Vector Tabs & Trigger Toolbar -->
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; align-items: center; justify-content: space-between;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="stress-tab-buttons">
+              <button class="btn primary sm" onclick="runCrashSimulation('all', this)" style="font-size: 12px; font-weight: 800; padding: 8px 14px;">
+                ⚡ ALL 4 VECTORS
+              </button>
+              <button class="btn secondary sm" onclick="runCrashSimulation('covariate_drift', this)" style="font-size: 12px; font-weight: 700; padding: 8px 14px;">
+                🌊 COVARIATE DRIFT
+              </button>
+              <button class="btn secondary sm" onclick="runCrashSimulation('outage_missingness', this)" style="font-size: 12px; font-weight: 700; padding: 8px 14px;">
+                🔌 UPSTREAM OUTAGE
+              </button>
+              <button class="btn secondary sm" onclick="runCrashSimulation('category_shock', this)" style="font-size: 12px; font-weight: 700; padding: 8px 14px;">
+                🔀 CATEGORY SHOCK
+              </button>
+              <button class="btn secondary sm" onclick="runCrashSimulation('extreme_tail_surge', this)" style="font-size: 12px; font-weight: 700; padding: 8px 14px;">
+                🌪️ TAIL SURGE
+              </button>
+            </div>
+            <div id="crash-loading-indicator" style="display: none; font-size: 12px; font-weight: 700; color: #dc2626;">
+              ⏳ STRESS-TESTING MODEL PIPELINE...
+            </div>
+          </div>
+
+          <!-- Stress Vector Results Table -->
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;" id="crash-results-table">
+              <thead>
+                <tr style="border-bottom: 3px solid #000; background: #fafafa;">
+                  <th style="padding: 10px;">STRESS VECTOR</th>
+                  <th style="padding: 10px;">UNCLEAN MODEL CRASH</th>
+                  <th style="padding: 10px;">TREATED MODEL SURVIVAL</th>
+                  <th style="padding: 10px;">NET RESILIENCE LIFT</th>
+                  <th style="padding: 10px;">VERDICT</th>
+                  <th style="padding: 10px;">PATHOLOGY & AUTOPSY FINDINGS</th>
+                </tr>
+              </thead>
+              <tbody id="crash-results-tbody">
+                {% for r in autopsy_report.results %}
+                  <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px; font-weight: 700;">
+                      <span style="font-size: 16px; margin-right: 6px;">{{ r.stress_icon }}</span>
+                      {{ r.stress_name }}
+                    </td>
+                    <td style="padding: 10px; font-family: monospace;">
+                      {{ "%.1f"|format(r.baseline_stress_acc * 100) }}%
+                      <span style="color: #dc2626; font-size: 11px; margin-left: 4px;">({{ "%.1f"|format(r.baseline_drop_pct) }}%)</span>
+                    </td>
+                    <td style="padding: 10px; font-family: monospace; font-weight: 700; color: #007a3d;">
+                      {{ "%.1f"|format(r.treated_stress_acc * 100) }}%
+                      <span style="font-size: 11px; color: {% if r.treated_drop_pct < 0 %}#dc2626{% else %}#007a3d{% endif %}; margin-left: 4px;">
+                        ({{ "%.1f"|format(r.treated_drop_pct) }}%)
+                      </span>
+                    </td>
+                    <td style="padding: 10px; font-family: monospace; font-weight: 800; color: #2563eb;">
+                      +{{ "%.1f"|format(r.resilience_advantage_pct) }}%
+                    </td>
+                    <td style="padding: 10px;">
+                      {% if r.verdict == 'RESILIENT' %}
+                        <span class="chip pass" style="font-size: 10px;">RESILIENT</span>
+                      {% elif r.verdict == 'MODERATE_DEGRADATION' %}
+                        <span class="chip warn" style="font-size: 10px;">DEGRADED</span>
+                      {% else %}
+                        <span class="chip fail" style="font-size: 10px;">CRITICAL</span>
+                      {% endif %}
+                    </td>
+                    <td style="padding: 10px; font-size: 12px; color: #334155; max-width: 380px;">
+                      {{ r.clinical_autopsy }}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div style="padding: 24px; text-align: center; color: #64748b; font-size: 13px;">
+            No model training results available. Upload a dataset and execute model evaluation first.
+          </div>
+        {% endif %}
+      </div>
+
+      <script>
+        async function runCrashSimulation(stressId, buttonElem) {
+          const indicator = document.getElementById('crash-loading-indicator');
+          if (indicator) indicator.style.display = 'inline-block';
+          
+          if (buttonElem && buttonElem.parentElement) {
+            buttonElem.parentElement.querySelectorAll('button').forEach(b => {
+              b.classList.remove('primary');
+              b.classList.add('secondary');
+            });
+            buttonElem.classList.remove('secondary');
+            buttonElem.classList.add('primary');
+          }
+
+          try {
+            const resp = await fetch('/api/simulate-crash', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ stress_id: stressId })
+            });
+            const data = await resp.json();
+            if (data.status === 'success') {
+              const tbody = document.getElementById('crash-results-tbody');
+              if (!tbody) return;
+
+              let results = [];
+              if (data.battery_report) {
+                results = data.battery_report.results;
+                const vBadge = document.getElementById('crash-verdict-badge');
+                if (vBadge) {
+                  vBadge.innerText = `🛡️ ${data.battery_report.overall_verdict} (+${data.battery_report.overall_resilience_gain_pct}% NET RESILIENCE)`;
+                }
+                const summaryElem = document.getElementById('crash-executive-summary');
+                if (summaryElem) {
+                  summaryElem.innerText = data.battery_report.executive_autopsy_summary;
+                }
+              } else if (data.single_result) {
+                results = [data.single_result];
+              }
+
+              tbody.innerHTML = '';
+              results.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #e2e8f0';
+                
+                let chipHtml = '<span class="chip pass" style="font-size: 10px;">RESILIENT</span>';
+                if (r.verdict === 'MODERATE_DEGRADATION') {
+                  chipHtml = '<span class="chip warn" style="font-size: 10px;">DEGRADED</span>';
+                } else if (r.verdict === 'CRITICAL_COLLAPSE') {
+                  chipHtml = '<span class="chip fail" style="font-size: 10px;">CRITICAL</span>';
+                }
+
+                tr.innerHTML = `
+                  <td style="padding: 10px; font-weight: 700;">
+                    <span style="font-size: 16px; margin-right: 6px;">${r.stress_icon}</span>
+                    ${r.stress_name}
+                  </td>
+                  <td style="padding: 10px; font-family: monospace;">
+                    ${(r.baseline_stress_acc * 100).toFixed(1)}%
+                    <span style="color: #dc2626; font-size: 11px; margin-left: 4px;">(${r.baseline_drop_pct.toFixed(1)}%)</span>
+                  </td>
+                  <td style="padding: 10px; font-family: monospace; font-weight: 700; color: #007a3d;">
+                    ${(r.treated_stress_acc * 100).toFixed(1)}%
+                    <span style="font-size: 11px; color: ${r.treated_drop_pct < 0 ? '#dc2626' : '#007a3d'}; margin-left: 4px;">
+                      (${r.treated_drop_pct.toFixed(1)}%)
+                    </span>
+                  </td>
+                  <td style="padding: 10px; font-family: monospace; font-weight: 800; color: #2563eb;">
+                    +${r.resilience_advantage_pct.toFixed(1)}%
+                  </td>
+                  <td style="padding: 10px;">${chipHtml}</td>
+                  <td style="padding: 10px; font-size: 12px; color: #334155; max-width: 380px;">
+                    ${r.clinical_autopsy}
+                  </td>
+                `;
+                tbody.appendChild(tr);
+              });
+            }
+          } catch (err) {
+            console.error('Error simulating crash:', err);
+          } finally {
+            if (indicator) indicator.style.display = 'none';
+          }
+        }
+      </script>
+
       <!-- Patient Consultation Complete Banner -->
       <div style="background: linear-gradient(135deg, #f0f4ff 0%, #e2eafc 100%); border: 3px solid #000; box-shadow: 4px 4px 0px #000; border-radius: 6px; padding: 20px 24px; margin-top: 24px;">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">

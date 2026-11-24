@@ -202,6 +202,7 @@ def get_module_page(module_id: str, request: Request):
     quality_report = None
     ai_consultation = None
     experiment_result = None
+    autopsy_report = None
     error_profile = None
     attribution_profile = None
 
@@ -457,13 +458,26 @@ def get_module_page(module_id: str, request: Request):
     elif module_id == "multi_model" and df is not None:
         try:
             from doctor.experiment import MultiModelExperiment
+            from doctor.simulator import ProductionStressSimulator
             experimenter = MultiModelExperiment(random_seed=42)
             n_train = int(len(df) * 0.8)
             tr = df.iloc[:n_train].copy()
             te = df.iloc[n_train:].copy()
             experiment_result = experimenter.run_experiment(tr, te, target_column=target_col)
+
+            # Run production stress autopsy battery
+            sim = ProductionStressSimulator(random_seed=42)
+            autopsy_report = sim.run_autopsy_battery(
+                raw_train=tr,
+                raw_test=te,
+                clean_train=tr,
+                clean_test=te,
+                target_column=target_col,
+            )
         except Exception:
+            logger.exception("Error in multi_model / simulator")
             experiment_result = None
+            autopsy_report = None
 
     elif module_id == "error_analysis" and df is not None:
         try:
@@ -557,6 +571,7 @@ def get_module_page(module_id: str, request: Request):
             "quality_report": quality_report,
             "ai_consultation": ai_consultation,
             "experiment_result": experiment_result,
+            "autopsy_report": autopsy_report,
             "error_profile": error_profile,
             "attribution_profile": attribution_profile,
             "target_col": target_col,
@@ -610,4 +625,43 @@ async def post_ai_consultation(request: Request):
     )
 
     return JSONResponse(status_code=200, content={"status": "success", "report": report.to_dict()})
+
+
+@router.post("/api/simulate-crash")
+async def post_simulate_crash(request: Request):
+    """Executes on-demand production crash simulation across stress vectors."""
+    session_id = request.cookies.get("session_id")
+    session = get_session(session_id)
+    if not session or session.df is None:
+        from doctor.loader import load_csv
+        if SAMPLE_LEAKAGE.exists():
+            df, _ = load_csv(str(SAMPLE_LEAKAGE), filename="leakage.csv")
+            target_col = "target"
+        else:
+            return JSONResponse(status_code=400, content={"error": "No active dataset."})
+    else:
+        df = session.df
+        target_col = session.target_column
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    stress_id = body.get("stress_id", "all")
+
+    from doctor.simulator import ProductionStressSimulator
+    n_train = int(len(df) * 0.8)
+    tr = df.iloc[:n_train].copy()
+    te = df.iloc[n_train:].copy()
+    target = target_col or df.columns[-1]
+
+    sim = ProductionStressSimulator(random_seed=42)
+    if stress_id in ("covariate_drift", "outage_missingness", "category_shock", "extreme_tail_surge"):
+        res = sim.run_stress_vector(stress_id, tr, te, tr, te, target)
+        return JSONResponse(status_code=200, content={"status": "success", "single_result": res.to_dict()})
+    else:
+        battery = sim.run_autopsy_battery(tr, te, tr, te, target)
+        return JSONResponse(status_code=200, content={"status": "success", "battery_report": battery.to_dict()})
+
 

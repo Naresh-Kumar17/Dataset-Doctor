@@ -461,3 +461,43 @@ def test_quality_assessment_renders_ai_doctor_card(auth_client):
     assert "AUTONOMOUS CLINICAL INTELLIGENCE LAYER" in resp.text
     assert "PRODUCTION SURVIVAL FORECAST" in resp.text
     assert "FORMAL PHYSICIAN'S DISCHARGE LETTER" in resp.text
+
+
+def test_simulate_crash_endpoint_all_vectors(auth_client):
+    """Verify /api/simulate-crash endpoint executes full autopsy battery."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.post("/api/simulate-crash", json={"stress_id": "all"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert "battery_report" in data
+    battery = data["battery_report"]
+    assert len(battery["results"]) == 4
+    assert "overall_verdict" in battery
+    assert "overall_resilience_gain_pct" in battery
+
+
+def test_simulate_crash_endpoint_single_vector(auth_client):
+    """Verify /api/simulate-crash endpoint executes targeted single vector."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.post("/api/simulate-crash", json={"stress_id": "covariate_drift"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert "single_result" in data
+    res = data["single_result"]
+    assert res["stress_id"] == "covariate_drift"
+    assert "resilience_advantage_pct" in res
+    assert "clinical_autopsy" in res
+
+
+def test_multi_model_renders_autopsy_simulator(auth_client):
+    """Verify Multi-Model UI workbench renders the Production Crash & Autopsy Simulator."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.get("/module/multi_model")
+    assert resp.status_code == 200
+    assert "PRODUCTION CRASH & DATA AUTOPSY SIMULATOR" in resp.text
+    assert "HARDENED STRESS LAB" in resp.text
+    assert "CLINICAL AUTOPSY EXECUTIVE SUMMARY" in resp.text
+    assert "COVARIATE DRIFT" in resp.text
+    assert "UPSTREAM OUTAGE" in resp.text
