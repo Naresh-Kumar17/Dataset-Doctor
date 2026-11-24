@@ -4,7 +4,7 @@ Renders individual issue module status, detection results, and advisor cards.
 """
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from doctor.registry import get_all_modules, get_module
@@ -663,5 +663,122 @@ async def post_simulate_crash(request: Request):
     else:
         battery = sim.run_autopsy_battery(tr, te, tr, te, target)
         return JSONResponse(status_code=200, content={"status": "success", "battery_report": battery.to_dict()})
+
+
+@router.get("/passport/download")
+def download_medical_passport(request: Request):
+    """Generates and streams cryptographic Dataset Medical Passport PDF as attachment."""
+    session_id = request.cookies.get("session_id")
+    session = get_session(session_id)
+    if not session or session.df is None:
+        if SAMPLE_ACCIDENT.exists():
+            df, _ = load_csv(str(SAMPLE_ACCIDENT), filename="accident.csv")
+            filename = "accident.csv"
+            target_col = "severity"
+            task_type = "classification"
+        else:
+            raise HTTPException(status_code=400, detail="No active dataset available for passport generation.")
+    else:
+        df = session.df
+        filename = (session.metadata.get("filename") if session.metadata else None) or "dataset.csv"
+        target_col = session.target_column
+        task_type = session.task_type
+
+    from doctor.quality import DataQualityAssessor
+    from doctor.ai_consultant import AIConsultant
+    from doctor.passport import DatasetMedicalPassport
+
+    assessor = DataQualityAssessor()
+    decisions = getattr(session, "decisions", None)
+    quality = assessor.assess(df, target_column=target_col, task_type=task_type, decisions=decisions)
+
+    consultant = AIConsultant()
+    profile_dict = session.profile if session else None
+    ai_report = consultant.consult(
+        df=df,
+        profile=profile_dict,
+        quality_assessment=quality,
+        target_column=target_col,
+        provider="offline",
+    )
+
+    passport = DatasetMedicalPassport()
+    pdf_bytes = passport.generate_pdf(
+        df=df,
+        filename=filename,
+        target_column=target_col,
+        task_type=task_type,
+        quality_assessment=quality,
+        ai_consultation=ai_report,
+    )
+
+    clean_fn = Path(filename).stem
+    safe_dl_name = f"Dataset_Medical_Passport_{clean_fn}.pdf"
+    return Response(
+        content=bytes(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_dl_name}"',
+            "Cache-Control": "no-cache",
+        },
+    )
+
+
+@router.get("/passport/preview")
+def preview_medical_passport(request: Request):
+    """Streams cryptographic Dataset Medical Passport PDF inline in browser."""
+    session_id = request.cookies.get("session_id")
+    session = get_session(session_id)
+    if not session or session.df is None:
+        if SAMPLE_ACCIDENT.exists():
+            df, _ = load_csv(str(SAMPLE_ACCIDENT), filename="accident.csv")
+            filename = "accident.csv"
+            target_col = "severity"
+            task_type = "classification"
+        else:
+            raise HTTPException(status_code=400, detail="No active dataset available.")
+    else:
+        df = session.df
+        filename = (session.metadata.get("filename") if session.metadata else None) or "dataset.csv"
+        target_col = session.target_column
+        task_type = session.task_type
+
+    from doctor.quality import DataQualityAssessor
+    from doctor.ai_consultant import AIConsultant
+    from doctor.passport import DatasetMedicalPassport
+
+    assessor = DataQualityAssessor()
+    decisions = getattr(session, "decisions", None)
+    quality = assessor.assess(df, target_column=target_col, task_type=task_type, decisions=decisions)
+
+    consultant = AIConsultant()
+    profile_dict = session.profile if session else None
+    ai_report = consultant.consult(
+        df=df,
+        profile=profile_dict,
+        quality_assessment=quality,
+        target_column=target_col,
+        provider="offline",
+    )
+
+    passport = DatasetMedicalPassport()
+    pdf_bytes = passport.generate_pdf(
+        df=df,
+        filename=filename,
+        target_column=target_col,
+        task_type=task_type,
+        quality_assessment=quality,
+        ai_consultation=ai_report,
+    )
+
+    return Response(
+        content=bytes(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": 'inline; filename="Dataset_Medical_Passport.pdf"',
+            "Cache-Control": "no-cache",
+        },
+    )
+
 
 

@@ -501,3 +501,51 @@ def test_multi_model_renders_autopsy_simulator(auth_client):
     assert "CLINICAL AUTOPSY EXECUTIVE SUMMARY" in resp.text
     assert "COVARIATE DRIFT" in resp.text
     assert "UPSTREAM OUTAGE" in resp.text
+
+
+def test_download_medical_passport_pdf(auth_client):
+    """Verify /passport/download streams a valid binary PDF with attachment header."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.get("/passport/download")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert "attachment" in resp.headers.get("content-disposition", "")
+    assert resp.content.startswith(b"%PDF-")
+    assert len(resp.content) > 1000
+
+
+def test_preview_medical_passport_pdf(auth_client):
+    """Verify /passport/preview streams a valid inline PDF."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.get("/passport/preview")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert "inline" in resp.headers.get("content-disposition", "")
+    assert resp.content.startswith(b"%PDF-")
+
+
+def test_profile_renders_passport_button(auth_client):
+    """Verify Profile page renders the Medical Passport PDF button."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.get("/profile")
+    assert resp.status_code == 200
+    assert "/passport/download" in resp.text
+    assert "DOWNLOAD MEDICAL PASSPORT (PDF)" in resp.text
+
+
+def test_quality_assessment_renders_passport_button(auth_client):
+    """Verify Quality Assessment renders the Medical Passport PDF button."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.get("/module/quality_assessment")
+    assert resp.status_code == 200
+    assert "/passport/download" in resp.text
+    assert "DOWNLOAD MEDICAL PASSPORT (PDF)" in resp.text
+
+
+def test_multi_model_renders_passport_button(auth_client):
+    """Verify Multi-Model completion banner renders the Medical Passport PDF button."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.get("/module/multi_model")
+    assert resp.status_code == 200
+    assert "/passport/download" in resp.text
+    assert "DOWNLOAD MEDICAL PASSPORT (PDF)" in resp.text
