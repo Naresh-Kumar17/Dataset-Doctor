@@ -72,6 +72,18 @@ def get_load_sample_dataset(request: Request, sample_name: str):
             "severe_accident",
             "classification",
         ),
+        "chaos": (
+            root_data / "samples" / "patient_zero_pathology.csv",
+            "patient_zero_icu_chaos.csv",
+            "patient_icu_admission",
+            "classification",
+        ),
+        "patient_zero": (
+            root_data / "samples" / "patient_zero_pathology.csv",
+            "patient_zero_icu_chaos.csv",
+            "patient_icu_admission",
+            "classification",
+        ),
     }
 
     if sample_name not in sample_map:

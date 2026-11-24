@@ -106,6 +106,31 @@
 
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px;">
       
+      <!-- Master Sample: Patient Zero (ICU Clinical Chaos) -->
+      <div class="card" style="grid-column: 1 / -1; margin: 0; padding: 22px; border: 3px solid #dc2626; box-shadow: 6px 6px 0 var(--ink); background: #FFF5F5; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 20px;">🚨</span>
+              <span style="font-weight: 900; font-size: 17px; color: #991b1b;">PATIENT ZERO • ALL-IN-ONE CLINICAL CHAOS LAB</span>
+            </div>
+            <span class="chip fail" style="font-size: 11px; font-weight: 800; background: #dc2626; color: #fff;">18 BUGS ACROSS ALL 6 DOMAINS</span>
+          </div>
+          <p style="font-size: 13px; color: #444; margin: 0 0 12px; line-height: 1.45;">
+            The ultimate benchmark dataset intentionally corrupted with every pathology Dataset Doctor diagnoses:
+            <strong>Direct & inverted target leakage</strong> (fabricating fake 100% accuracy), <strong>-999 sentinels & hidden N/A tokens</strong>, <strong>high-missingness columns (&gt;75%)</strong>, <strong>conflicting & duplicate patient records</strong>, <strong>biologically impossible outliers</strong> (age 999, negative blood pressure), <strong>mixed types & currency strings</strong>, and <strong>severe 94:6 class imbalance</strong>.
+          </p>
+          <div style="font-size: 11px; color: #666; font-family: 'JetBrains Mono', monospace; margin-bottom: 16px;">
+            Target: <code>patient_icu_admission</code> &bull; 528 rows x 18 cols &bull; Health Score: 0/100 (Quarantined)
+          </div>
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <a href="/sample/chaos" class="btn primary" style="background: #dc2626; border-color: #000; font-weight: 900; font-size: 13px; padding: 12px 24px; box-shadow: 3px 3px 0 #000; text-decoration: none;">
+            ⚡ RUN FULL DIAGNOSTIC ON PATIENT ZERO &rarr;
+          </a>
+        </div>
+      </div>
+
       <!-- Sample 1: Data Leakage -->
       <div class="card" style="margin: 0; padding: 18px; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: #FFFDF5; display: flex; flex-direction: column; justify-content: space-between;">
         <div>

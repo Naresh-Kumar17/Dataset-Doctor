@@ -407,6 +407,17 @@ def test_sample_dataset_route_accident(auth_client):
     assert "severe_accident" in profile_resp.text
 
 
+def test_sample_dataset_route_chaos(auth_client):
+    """Verify 1-click Patient Zero ICU Chaos multi-bug dataset loads and locks target."""
+    response = auth_client.get("/sample/chaos", follow_redirects=False)
+    assert response.status_code == 303
+    assert "/profile" in response.headers["location"]
+
+    profile_resp = auth_client.get("/profile")
+    assert profile_resp.status_code == 200
+    assert "patient_icu_admission" in profile_resp.text
+
+
 def test_sample_dataset_route_unknown_redirects_home(auth_client):
     """Verify unknown sample name safely redirects to home."""
     response = auth_client.get("/sample/nonexistent_sample", follow_redirects=False)
