@@ -17,6 +17,9 @@ def test_quality_assessment_clean_dataset():
 
     assert report.overall_score == 100
     assert report.readiness == "TRAINING_READY"
+    assert report.letter_grade == "A+"
+    assert "PRISTINE" in report.layman_verdict
+    assert len(report.layman_summary) > 10
     can_train, msg = report.can_train_model(allow_override=False)
     assert can_train is True
     assert len(report.critical_blockers) == 0
@@ -35,6 +38,8 @@ def test_quality_assessment_blocks_on_leakage():
     report = assessor.assess(df, target_column="target", task_type="classification")
 
     assert report.readiness == "BLOCKED_CRITICAL"
+    assert report.letter_grade == "F"
+    assert "QUARANTINED" in report.layman_verdict
     assert len(report.critical_blockers) > 0
     assert report.overall_score < 100
 

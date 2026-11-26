@@ -41,6 +41,9 @@ class QualityAssessment:
     total_issues_found: int
     total_issues_resolved: int
     raw_issues: Dict[str, List[Issue]] = field(default_factory=dict)
+    letter_grade: str = "A"
+    layman_verdict: str = "HEALTHY"
+    layman_summary: str = ""
 
     def can_train_model(self, allow_override: bool = False) -> Tuple[bool, str]:
         """
@@ -220,6 +223,36 @@ class DataQualityAssessor:
         else:
             readiness = "TRAINING_READY"
 
+        # Determine Academic Letter Grade & Layman Clinical Status
+        if readiness == "BLOCKED_CRITICAL":
+            letter_grade = "F"
+            layman_verdict = "QUARANTINED (CRITICAL CHEATING / INTEGRITY BLOCK)"
+            layman_summary = "Cheating data or severe integrity failure detected. Model training is blocked to prevent production collapse."
+        elif overall_score >= 95:
+            letter_grade = "A+"
+            layman_verdict = "PRISTINE (FULLY PRODUCTION CERTIFIED)"
+            layman_summary = "Dataset exhibits pristine health with zero critical risks. Certified for high-stakes production deployment."
+        elif overall_score >= 85:
+            letter_grade = "A"
+            layman_verdict = "HEALTHY (PRODUCTION READY)"
+            layman_summary = "Dataset is clean, representative, and safe for machine learning model training."
+        elif overall_score >= 75:
+            letter_grade = "B"
+            layman_verdict = "GOOD (STABLE WITH PRECAUTIONS)"
+            layman_summary = "Minor statistical anomalies or missingness detected. Safe for training with standard precautions."
+        elif overall_score >= 60:
+            letter_grade = "C"
+            layman_verdict = "FAIR (CLINICAL TREATMENT ADVISED)"
+            layman_summary = "Notable data flaws (e.g. missing values or class skew). Treatment recipe recommended before training."
+        elif overall_score >= 45:
+            letter_grade = "D"
+            layman_verdict = "POOR (HIGH DRIFT RISK)"
+            layman_summary = "Significant data corruption detected. Models trained on this data will be unstable in production."
+        else:
+            letter_grade = "F"
+            layman_verdict = "FAIL (SEVERELY CONTAMINATED)"
+            layman_summary = "Severe data quality failure. Complete automated clinical remediation required before training."
+
         return QualityAssessment(
             overall_score=overall_score,
             readiness=readiness,
@@ -229,4 +262,7 @@ class DataQualityAssessor:
             total_issues_found=total_found,
             total_issues_resolved=total_resolved,
             raw_issues=all_detected,
+            letter_grade=letter_grade,
+            layman_verdict=layman_verdict,
+            layman_summary=layman_summary,
         )

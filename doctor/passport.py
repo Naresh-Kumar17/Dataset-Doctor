@@ -136,10 +136,12 @@ class DatasetMedicalPassport:
         # Resolve Quality Score and Status
         score = 85
         readiness = "TRAINING_READY"
+        grade = "A"
         domain_summaries: Dict[str, Any] = {}
         if quality_assessment:
             score = getattr(quality_assessment, "overall_score", 85)
             readiness = getattr(quality_assessment, "readiness", "TRAINING_READY")
+            grade = getattr(quality_assessment, "letter_grade", "A")
             domain_summaries = getattr(quality_assessment, "domain_summaries", {})
 
         pdf = DatasetPassportPDF(cert_id=cert_id, sha256_hash=sha256_hash)
@@ -226,14 +228,14 @@ class DatasetMedicalPassport:
         pdf.cell(60, 5, status_text, align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
         pdf.set_xy(140, y_intake + 9)
-        pdf.set_font("Helvetica", "B", 22)
+        pdf.set_font("Helvetica", "B", 20)
         pdf.set_text_color(15, 23, 42)
-        pdf.cell(60, 12, f"{score}", align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(60, 11, f"{score} ({grade})", align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
         pdf.set_xy(140, y_intake + 20)
-        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_font("Helvetica", "B", 7.5)
         pdf.set_text_color(100, 116, 139)
-        pdf.cell(60, 4, "DATA QUALITY INDEX", align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(60, 4, f"DATA QUALITY INDEX (GRADE {grade})", align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
         pdf.set_xy(140, y_intake + 25)
         pdf.set_font("Helvetica", "B", 7)

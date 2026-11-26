@@ -27,6 +27,75 @@
     </div>
   </div>
 
+  <!-- ELI5 Plain-English Explainer Card & Toggle (Phase 2) -->
+  {% if eli5_guide %}
+    <div style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: flex-start; margin-bottom: 8px;">
+        <button id="eli5-toggle-btn" class="btn secondary sm" onclick="toggleELI5()" style="font-size: 12px; font-weight: 800; padding: 6px 14px; border: 2px solid #000; box-shadow: 2px 2px 0 #000; display: inline-flex; align-items: center; gap: 6px; background: #FFF9D2;">
+          <span>💡</span> <span id="eli5-btn-text">EXPLAIN THIS IN PLAIN ENGLISH (ELI5)</span>
+        </button>
+      </div>
+
+      <div id="eli5-card" style="display: none; background: #FFFDF0; border: 3px solid #000; box-shadow: 4px 4px 0px #000; border-radius: 6px; padding: 18px 22px; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px;">
+          <div style="display: inline-flex; align-items: center; gap: 6px; background: #FFD93D; color: #000; font-weight: 900; font-size: 11px; padding: 3px 10px; border: 1.5px solid #000; border-radius: 3px; letter-spacing: 0.5px;">
+            💡 PLAIN-ENGLISH TRANSLATOR • ZERO JARGON
+          </div>
+          <button onclick="toggleELI5()" style="background: none; border: none; font-size: 16px; font-weight: 900; cursor: pointer; color: #64748b;" title="Close Explainer">✕</button>
+        </div>
+
+        <h3 style="margin: 0 0 4px; font-size: 18px; color: #0f172a;">{{ eli5_guide.title }}</h3>
+        <p style="font-size: 14px; font-weight: 700; color: #1e3a8a; margin: 0 0 10px;">
+          "{{ eli5_guide.tagline }}"
+        </p>
+        
+        <div style="background: #ffffff; border: 1.5px solid #000; border-radius: 4px; padding: 12px 14px; margin-bottom: 10px;">
+          <div style="font-size: 11px; font-weight: 900; color: #007a3d; text-transform: uppercase; margin-bottom: 4px;">
+            REAL-WORLD ANALOGY:
+          </div>
+          <div style="font-size: 13px; color: #334155; line-height: 1.5;">
+            {{ eli5_guide.analogy }}
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;">
+          <div style="background: #FFF5F5; border: 1.5px solid #dc2626; border-radius: 4px; padding: 10px 14px;">
+            <div style="font-size: 11px; font-weight: 900; color: #991b1b; text-transform: uppercase; margin-bottom: 4px;">
+              ⚠️ THE DANGER (WHY IT BREAKS):
+            </div>
+            <div style="font-size: 12px; color: #7f1d1d; line-height: 1.45;">
+              {{ eli5_guide.why_it_matters }}
+            </div>
+          </div>
+
+          <div style="background: #F0FDF4; border: 1.5px solid #16a34a; border-radius: 4px; padding: 10px 14px;">
+            <div style="font-size: 11px; font-weight: 900; color: #166534; text-transform: uppercase; margin-bottom: 4px;">
+              🛡️ HOW DATASET DOCTOR CURES IT:
+            </div>
+            <div style="font-size: 12px; color: #14532d; line-height: 1.45;">
+              {{ eli5_guide.how_we_fix_it }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function toggleELI5() {
+        const card = document.getElementById('eli5-card');
+        const btnText = document.getElementById('eli5-btn-text');
+        if (!card) return;
+        if (card.style.display === 'none' || card.style.display === '') {
+          card.style.display = 'block';
+          if (btnText) btnText.innerText = 'HIDE PLAIN ENGLISH EXPLAINER';
+        } else {
+          card.style.display = 'none';
+          if (btnText) btnText.innerText = 'EXPLAIN THIS IN PLAIN ENGLISH (ELI5)';
+        }
+      }
+    </script>
+  {% endif %}
+
   {% if module.id == 'nulls' or module.id == 'nulls_advisor' %}
     <!-- Summary Strip -->
     <div class="stat-grid" style="margin-bottom: 24px;">
@@ -1340,9 +1409,16 @@
     {% if quality_report %}
       <div class="stat-grid" style="margin-bottom: 24px;">
         <div class="stat-card" style="border-left: 6px solid {% if quality_report.overall_score >= 80 %}var(--green){% elif quality_report.overall_score >= 60 %}var(--orange){% else %}var(--pink){% endif %};">
-          <div class="stat-label">DATA QUALITY SCORE</div>
-          <div class="stat-val" style="font-size: 42px; font-weight: 900;">{{ quality_report.overall_score }}<span style="font-size: 20px; color: #666;">/100</span></div>
-          <div style="font-size: 12px; color: #555; margin-top: 4px;">Composite index across all 6 diagnostic domains</div>
+          <div class="stat-label">DATA QUALITY SCORE & HEALTH GRADE</div>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <div class="stat-val" style="font-size: 38px; font-weight: 900;">{{ quality_report.overall_score }}<span style="font-size: 18px; color: #666;">/100</span></div>
+            <span class="chip {% if quality_report.letter_grade in ('A+', 'A') %}pass{% elif quality_report.letter_grade == 'B' %}built{% elif quality_report.letter_grade == 'C' %}warn{% else %}fail{% endif %}" style="font-size: 16px; font-weight: 900; padding: 2px 10px; border: 2px solid #000;">
+              GRADE {{ quality_report.letter_grade or 'A' }}
+            </span>
+          </div>
+          <div style="font-size: 11px; font-weight: 800; color: #1e3a8a; margin-top: 4px; text-transform: uppercase;">
+            {{ quality_report.layman_verdict or 'CLINICAL STATUS' }}
+          </div>
         </div>
 
         <div class="stat-card" style="border-left: 6px solid {% if quality_report.readiness == 'TRAINING_READY' %}var(--green){% elif quality_report.readiness == 'NEEDS_ATTENTION' %}var(--orange){% else %}var(--pink){% endif %};">
@@ -1372,6 +1448,18 @@
         </div>
       </div>
 
+      <!-- Layman Clinical Summary Banner (Phase 3) -->
+      {% if quality_report.layman_summary %}
+        <div class="banner {% if quality_report.readiness == 'TRAINING_READY' %}success{% elif quality_report.readiness == 'NEEDS_ATTENTION' %}warning{% else %}danger{% endif %}" style="margin-bottom: 24px; padding: 14px 18px; border: 2px solid #000; box-shadow: 3px 3px 0 #000;">
+          <div style="font-size: 11px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px;">
+            CLINICAL SUMMARY FOR AUDITORS & MANAGERS:
+          </div>
+          <div style="font-size: 13px; font-weight: 600; line-height: 1.45;">
+            {{ quality_report.layman_summary }}
+          </div>
+        </div>
+      {% endif %}
+
       {% if quality_report.critical_blockers %}
         <div class="banner danger" style="margin-bottom: 24px;">
           <div style="font-weight: 800; font-size: 15px; margin-bottom: 6px;">⛔ MODEL TRAINING BLOCKED: CRITICAL INTEGRITY HAZARDS</div>
@@ -1385,6 +1473,60 @@
           </div>
         </div>
       {% endif %}
+
+      <!-- Phase 4: 1-Click "Prescribe & Cure All" Hero Bar -->
+      <div class="card" style="margin-bottom: 24px; border: 3px solid #000; box-shadow: 5px 5px 0px #000; background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); padding: 22px 26px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <div style="display: inline-flex; align-items: center; gap: 6px; background: #007a3d; color: #fff; font-size: 11px; font-weight: 900; padding: 4px 10px; border-radius: 4px; letter-spacing: 0.8px; margin-bottom: 8px;">
+              ⚡ 1-CLICK CLINICAL AUTO-REMEDIATION
+            </div>
+            <h3 style="margin: 0 0 6px; font-size: 20px; font-weight: 900; color: #1e293b;">
+              PRESCRIBE &amp; CURE ALL DATA PATHOLOGIES
+            </h3>
+            <p style="font-size: 13px; color: #475569; margin: 0; max-width: 650px; line-height: 1.45;">
+              Don't want to configure 20 individual columns? Dataset Doctor will automatically quarantine cheater columns, deduplicate records, fix text currency symbols, and impute missing values in canonical order.
+            </p>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            <button class="btn primary" onclick="runCureAll()" id="cure-all-btn" style="background: #007a3d; color: #fff; font-size: 14px; font-weight: 900; padding: 12px 22px; box-shadow: 3px 3px 0 #000; border: 2px solid #000; cursor: pointer;">
+              🚀 CURE ALL &amp; PROCEED &rarr;
+            </button>
+            <a href="/decide/export_csv" class="btn secondary" style="font-size: 13px; font-weight: 800; padding: 12px 18px; border: 2px solid #000; box-shadow: 2px 2px 0 #000; text-decoration: none;">
+              📥 DOWNLOAD CLEAN CSV
+            </a>
+          </div>
+        </div>
+        <div id="cure-all-status" style="display: none; margin-top: 14px; font-size: 13px; font-weight: 800; color: #007a3d;">
+          ⏳ APPLYING CLINICAL CURE ACROSS ALL 6 DOMAINS...
+        </div>
+      </div>
+
+      <script>
+        async function runCureAll() {
+          const btn = document.getElementById('cure-all-btn');
+          const status = document.getElementById('cure-all-status');
+          if (btn) btn.disabled = true;
+          if (status) {
+            status.style.display = 'block';
+            status.innerText = '⏳ Curing data pathologies in canonical order...';
+          }
+          try {
+            const resp = await fetch('/decide/cure_all', { method: 'POST' });
+            const data = await resp.json();
+            if (data.status === 'success') {
+              window.location.href = data.redirect_url || '/module/pipeline';
+            } else {
+              alert(data.message || 'Cure all failed.');
+            }
+          } catch (err) {
+            console.error(err);
+            alert('Failed to execute automated cure: ' + err);
+          } finally {
+            if (btn) btn.disabled = false;
+          }
+        }
+      </script>
 
       <!-- 6-Domain Risk Matrix Table -->
       <div class="card" style="margin-bottom: 24px;">
