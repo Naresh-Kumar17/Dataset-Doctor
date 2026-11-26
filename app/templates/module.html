@@ -1643,24 +1643,26 @@
               <div style="font-size: 13px; font-weight: 800; text-transform: uppercase; margin-bottom: 8px;">
                 🔍 SEMANTIC LEAKAGE & POST-EVENT FEATURE AUDIT
               </div>
-              <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 2px solid #000;" id="ai-leakage-table">
-                <thead>
-                  <tr style="background: #f0f0f0; border-bottom: 2px solid #000;">
-                    <th style="padding: 8px; text-align: left;">SUSPICIOUS FEATURE</th>
-                    <th style="padding: 8px; text-align: left;">RISK</th>
-                    <th style="padding: 8px; text-align: left;">PATHOLOGICAL REASON</th>
-                  </tr>
-                </thead>
-                <tbody id="ai-leakage-tbody">
-                  {% for l in ai_consultation.semantic_leakage_review %}
-                    <tr style="border-bottom: 1px solid #ddd;">
-                      <td style="padding: 8px; font-family: monospace; font-weight: 700;">{{ l.column }}</td>
-                      <td style="padding: 8px;"><span class="badge high">{{ l.risk_level }}</span></td>
-                      <td style="padding: 8px; color: #333;">{{ l.rationale }}</td>
+              <div class="table-responsive">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 0;" id="ai-leakage-table">
+                  <thead>
+                    <tr style="background: #f0f0f0; border-bottom: 2px solid #000;">
+                      <th style="padding: 8px; text-align: left;">SUSPICIOUS FEATURE</th>
+                      <th style="padding: 8px; text-align: left;">RISK</th>
+                      <th style="padding: 8px; text-align: left;">PATHOLOGICAL REASON</th>
                     </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody id="ai-leakage-tbody">
+                    {% for l in ai_consultation.semantic_leakage_review %}
+                      <tr style="border-bottom: 1px solid #ddd;">
+                        <td style="padding: 8px; font-family: monospace; font-weight: 700;">{{ l.column }}</td>
+                        <td style="padding: 8px;"><span class="badge high">{{ l.risk_level }}</span></td>
+                        <td style="padding: 8px; color: #333;">{{ l.rationale }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
             </div>
           {% endif %}
 
