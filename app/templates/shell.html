@@ -1,6 +1,58 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- Universal 4-Step Patient Consultation Stepper (Phase 1) -->
+{% set step_num = 1 %}
+{% if current_page == 'profile' %}
+  {% set step_num = 1 %}
+{% elif current_page in ('quality_assessment', 'leakage', 'leakage_advisor', 'imbalance', 'imbalance_advisor', 'nulls', 'nulls_advisor', 'outliers', 'outliers_advisor', 'types', 'duplicates') %}
+  {% set step_num = 2 %}
+{% elif current_page == 'pipeline' %}
+  {% set step_num = 3 %}
+{% elif current_page in ('multi_model', 'error_analysis', 'explainability') %}
+  {% set step_num = 4 %}
+{% endif %}
+
+<div class="consultation-stepper-bar">
+  <div class="stepper-track">
+    <!-- Step 1 -->
+    <a href="/profile" class="stepper-step {% if step_num == 1 %}active{% elif step_num > 1 %}completed{% else %}upcoming{% endif %}" title="Step 1: Inspect schema, datatypes, and select target">
+      <span class="stepper-badge">{% if step_num > 1 %}✓{% else %}1{% endif %}</span>
+      <span>Intake & Target</span>
+    </a>
+    
+    <span class="stepper-divider">&rarr;</span>
+
+    <!-- Step 2 -->
+    <a href="/module/quality_assessment" class="stepper-step {% if step_num == 2 %}active{% elif step_num > 2 %}completed{% else %}upcoming{% endif %}" title="Step 2: 6-Domain risk scan and AI Doctor second opinion">
+      <span class="stepper-badge">{% if step_num > 2 %}✓{% else %}2{% endif %}</span>
+      <span>Health Score & AI Doctor</span>
+    </a>
+
+    <span class="stepper-divider">&rarr;</span>
+
+    <!-- Step 3 -->
+    <a href="/module/pipeline" class="stepper-step {% if step_num == 3 %}active{% elif step_num > 3 %}completed{% else %}upcoming{% endif %}" title="Step 3: Review automated clinical treatment recipe and export code">
+      <span class="stepper-badge">{% if step_num > 3 %}✓{% else %}3{% endif %}</span>
+      <span>Treatment Recipe</span>
+    </a>
+
+    <span class="stepper-divider">&rarr;</span>
+
+    <!-- Step 4 -->
+    <a href="/module/multi_model" class="stepper-step {% if step_num == 4 %}active{% elif step_num > 4 %}completed{% else %}upcoming{% endif %}" title="Step 4: Multi-model evaluation and production crash simulation">
+      <span class="stepper-badge">4</span>
+      <span>Model Gains & Crash Lab</span>
+    </a>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+    <a href="/passport/download" class="btn secondary sm" style="font-size: 11px; font-weight: 800; padding: 6px 12px; text-decoration: none; border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); display: inline-flex; align-items: center; gap: 5px;" title="Download Official Medical Passport PDF">
+      <span>📄</span> PASSPORT PDF
+    </a>
+  </div>
+</div>
+
 <div class="layout">
   <!-- Left Sidebar with Streamlined Consultation Journey & Diagnostic Labs -->
   <aside class="sidebar">
