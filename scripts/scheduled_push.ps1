@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   Automated git push scheduler for Dataset Doctor 3-day release rollout.
   - Day 1 (Nov 26, 2026): Pushes first 3 commits (Intake Stepper, ELI5 Explainer, Letter Grades)

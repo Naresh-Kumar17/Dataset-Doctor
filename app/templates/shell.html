@@ -56,6 +56,15 @@
 <div class="layout">
   <!-- Left Sidebar with Streamlined Consultation Journey & Diagnostic Labs -->
   <aside class="sidebar">
+    {% if active_filename %}
+      <div style="background: #FFFDF0; border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); padding: 8px 12px; margin-bottom: 4px; border-radius: 4px;">
+        <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase;">ACTIVE PATIENT</div>
+        <div style="font-size: 12px; font-weight: 800; color: #0f172a; word-break: break-all; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">
+          {{ active_filename }}
+        </div>
+      </div>
+    {% endif %}
+
     <div class="sidebar-title">PATIENT CONSULTATION</div>
     
     <a href="/profile" class="module-nav-item {% if current_page == 'profile' %}active{% endif %}">
@@ -78,7 +87,7 @@
       <span class="chip pass" style="font-size: 10px;">STEP 4</span>
     </a>
 
-    <div class="sidebar-title" style="margin-top: 16px;">DIAGNOSTIC LABORATORIES</div>
+    <div class="sidebar-title" style="margin-top: 14px;">DIAGNOSTIC LABORATORIES</div>
     <a href="/module/leakage" class="module-nav-item {% if current_page in ('leakage', 'leakage_advisor') %}active{% endif %}">
       <span>🕵️ Data Leakage Hunter</span>
       <span class="chip pass" style="font-size: 10px;">AUDIT</span>
@@ -112,9 +121,9 @@
       <span class="chip pass" style="font-size: 10px;">EVAL</span>
     </a>
 
-    <div class="sidebar-title" style="margin-top: 16px;">ENGINE VERIFICATION</div>
+    <div class="sidebar-title" style="margin-top: 14px;">ENGINE VERIFICATION</div>
     <a href="/bench" class="module-nav-item {% if current_page == 'bench' %}active{% endif %}">
-      <span>Automated Test Bench</span>
+      <span>🧪 Automated Test Bench</span>
       <span class="chip pass" style="font-size: 10px;">20 GATES</span>
     </a>
   </aside>
