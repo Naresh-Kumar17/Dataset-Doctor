@@ -12,6 +12,7 @@ from doctor.base import DetectionContext
 from doctor.issues.nulls.detect import NullDetector
 from doctor.issues.nulls.explain import format_evidence_badge
 from doctor.loader import load_csv
+from doctor.eli5 import get_eli5_guide
 from app.session import get_session
 
 router = APIRouter()
@@ -577,6 +578,7 @@ def get_module_page(module_id: str, request: Request):
             "target_col": target_col,
             "has_data": df is not None,
             "format_badge": badge_formatter,
+            "eli5_guide": get_eli5_guide(module_id),
         }
     )
 
