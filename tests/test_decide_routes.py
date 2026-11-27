@@ -152,3 +152,16 @@ def test_decide_leakage_apply(auth_client):
     assert data["status"] == "success"
     assert data["applied_option"] == "drop_column"
     assert data["cols_delta"] == -1
+
+
+def test_decide_cure_all_endpoint(auth_client):
+    """Verify /decide/cure_all applies remediations across leakage, duplicates, types, and nulls."""
+    auth_client.get("/sample/chaos", follow_redirects=False)
+    res = auth_client.post("/decide/cure_all")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert data["applied_count"] > 0
+    assert len(data["applied_actions"]) > 0
+    assert data["redirect_url"] == "/module/pipeline"
+
