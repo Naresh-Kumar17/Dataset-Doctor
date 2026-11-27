@@ -335,7 +335,7 @@ def test_quality_assessment_module_page(auth_client):
     response = auth_client.get("/module/quality_assessment")
     assert response.status_code == 200
     assert "Quality Assessment" in response.text
-    assert "DATA QUALITY SCORE" in response.text
+    assert "DATA QUALITY SCORE" in response.text or "DATA HEALTH SCORE" in response.text
     assert "CROSS-MODULE DIAGNOSTIC RISK MATRIX" in response.text
 
 
@@ -560,3 +560,68 @@ def test_multi_model_renders_passport_button(auth_client):
     assert resp.status_code == 200
     assert "/passport/download" in resp.text
     assert "DOWNLOAD MEDICAL PASSPORT (PDF)" in resp.text
+
+
+def test_universal_consultation_stepper_renders_on_all_pages(auth_client):
+    """Verify Universal 4-Step Patient Consultation Stepper renders across profile and modules."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    
+    # Check Profile
+    resp_profile = auth_client.get("/profile")
+    assert resp_profile.status_code == 200
+    assert "consultation-stepper-bar" in resp_profile.text
+    assert "Intake &amp; Target" in resp_profile.text or "Intake & Target" in resp_profile.text
+    assert "Health Score &amp; AI Doctor" in resp_profile.text or "Health Score & AI Doctor" in resp_profile.text
+    
+    # Check Module page
+    resp_module = auth_client.get("/module/quality_assessment")
+    assert resp_module.status_code == 200
+    assert "consultation-stepper-bar" in resp_module.text
+    assert "Treatment Recipe" in resp_module.text
+    assert "Model Gains &amp; Crash Lab" in resp_module.text or "Model Gains & Crash Lab" in resp_module.text
+
+
+def test_module_page_renders_eli5_explainer(auth_client):
+    """Verify Module pages render the toggleable ELI5 plain-English explainer."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.get("/module/leakage")
+    assert resp.status_code == 200
+    assert "EXPLAIN THIS IN PLAIN ENGLISH (ELI5)" in resp.text
+    assert "PLAIN-ENGLISH TRANSLATOR" in resp.text
+    assert "The Cheating Exam Problem" in resp.text
+
+
+def test_quality_assessment_renders_letter_grade_badge(auth_client):
+    """Verify Quality Assessment UI renders the academic Letter Grade badge and layman status."""
+    auth_client.get("/sample/leakage", follow_redirects=False)
+    resp = auth_client.get("/module/quality_assessment")
+    assert resp.status_code == 200
+    assert "HEALTH GRADE" in resp.text
+    assert "DATA QUALITY SCORE" in resp.text
+    assert "CLINICAL SUMMARY FOR AUDITORS &amp; MANAGERS:" in resp.text or "CLINICAL SUMMARY FOR AUDITORS & MANAGERS:" in resp.text
+
+
+def test_quality_assessment_renders_cure_all_hero_bar(auth_client):
+    """Verify Quality Assessment UI renders the 1-Click Cure All hero bar."""
+    auth_client.get("/sample/chaos", follow_redirects=False)
+    resp = auth_client.get("/module/quality_assessment")
+    assert resp.status_code == 200
+    assert "PRESCRIBE &amp; CURE ALL DATA PATHOLOGIES" in resp.text or "PRESCRIBE & CURE ALL DATA PATHOLOGIES" in resp.text
+    assert "runCureAll()" in resp.text
+
+
+def test_base_renders_how_it_works_tour_modal(auth_client):
+    """Verify base shell renders the How It Works button and 30-second onboarding modal."""
+    resp = auth_client.get("/")
+    assert resp.status_code == 200
+    assert "HOW IT WORKS" in resp.text
+    assert "tourModal" in resp.text
+    assert "HOW DATASET DOCTOR WORKS IN 30 SECONDS" in resp.text
+    assert "STEP 1 OF 4 • INTAKE &amp; DISCOVERY" in resp.text or "STEP 1 OF 4 • INTAKE & DISCOVERY" in resp.text
+    assert "STEP 4 OF 4 • HARDENED STRESS LAB" in resp.text
+    assert "Drop Any Messy CSV Table" in resp.text
+    assert "Production Crash &amp; Drift Simulator" in resp.text or "Production Crash & Drift Simulator" in resp.text
+
+
+
+
