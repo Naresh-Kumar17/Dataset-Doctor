@@ -17,6 +17,11 @@
       {% endif %}
     </div>
     <div class="nav-actions">
+      <!-- How It Works 30-Second Guided Tour (Phase 5) -->
+      <button type="button" class="btn" onclick="openTourModal()" style="background: var(--yellow); color: #000; font-weight: 800; font-size: 13px; padding: 6px 14px; min-height: 36px; border: 2px solid #000; box-shadow: 2px 2px 0 #000; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;" title="Quick 30-second tour of Dataset Doctor">
+        <span>❓</span> HOW IT WORKS
+      </button>
+
       {% if request.state.is_authenticated %}
         {% if active_filename %}
           <a href="/profile" class="btn secondary" style="padding: 6px 14px; min-height: 36px; font-size: 13px;">Overview</a>
@@ -34,5 +39,157 @@
   <main class="container">
     {% block content %}{% endblock %}
   </main>
+
+  <!-- Interactive 30-Second Tour Modal (Phase 5) -->
+  <div id="tourModal" class="modal-overlay" onclick="handleTourBackdrop(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #000; padding-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">🩺</span>
+          <span style="font-weight: 900; font-size: 16px; letter-spacing: 0.5px;">HOW DATASET DOCTOR WORKS IN 30 SECONDS</span>
+        </div>
+        <button type="button" onclick="closeTourModal()" style="background: none; border: none; font-size: 20px; font-weight: 900; cursor: pointer; color: #475569;" title="Close Modal">✕</button>
+      </div>
+
+      <!-- Slide 1: Upload -->
+      <div class="tour-slide active" id="tourSlide1">
+        <div style="display: inline-block; background: #e0f2fe; color: #0369a1; font-weight: 900; font-size: 11px; padding: 3px 8px; border: 1.5px solid #000; margin-bottom: 8px;">
+          STEP 1 OF 4 • INTAKE & DISCOVERY
+        </div>
+        <h3 style="margin: 0 0 8px; font-size: 22px;">📥 Drop Any Messy CSV Table</h3>
+        <p style="font-size: 14px; color: #334155; line-height: 1.5; margin: 0 0 16px;">
+          Zero setup or coding required. Drop any messy table with mixed delimiters, currency strings (<code>$1,450</code>), missing blanks, or ambiguous dates. Dataset Doctor auto-profiles schema invariants and locks your test set cryptographically.
+        </p>
+        <div style="background: #f8fafc; border: 2px dashed #000; padding: 12px; border-radius: 4px; font-size: 12px; font-family: monospace; color: #0f172a;">
+          ✓ Delimiter auto-detection &bull; ✓ Schema inference &bull; ✓ Cryptographic test partition lock
+        </div>
+      </div>
+
+      <!-- Slide 2: Audit -->
+      <div class="tour-slide" id="tourSlide2">
+        <div style="display: inline-block; background: #fef08a; color: #854d0e; font-weight: 900; font-size: 11px; padding: 3px 8px; border: 1.5px solid #000; margin-bottom: 8px;">
+          STEP 2 OF 4 • CLINICAL HEALTH EXAM
+        </div>
+        <h3 style="margin: 0 0 8px; font-size: 22px;">🩺 6-Domain Audit & Letter Grade</h3>
+        <p style="font-size: 14px; color: #334155; line-height: 1.5; margin: 0 0 16px;">
+          Our diagnostic engine examines 6 vital domains: <strong>Cheating Data (Leakage)</strong>, <strong>Missing Values</strong>, <strong>Exact Duplicates</strong>, <strong>Type Traps</strong>, <strong>Impossible Outliers</strong>, and <strong>Class Imbalance</strong>. You get a clear <strong>Letter Grade (A+ to F)</strong> and AI Doctor Second Opinion.
+        </p>
+        <div style="background: #f8fafc; border: 2px dashed #000; padding: 12px; border-radius: 4px; font-size: 12px; font-family: monospace; color: #0f172a;">
+          ✓ Letter Grade (A+ to F) &bull; ✓ EU AI Act Article 10 Audit &bull; ✓ PDF Medical Passport
+        </div>
+      </div>
+
+      <!-- Slide 3: Treatment -->
+      <div class="tour-slide" id="tourSlide3">
+        <div style="display: inline-block; background: #dcfce7; color: #15803d; font-weight: 900; font-size: 11px; padding: 3px 8px; border: 1.5px solid #000; margin-bottom: 8px;">
+          STEP 3 OF 4 • 1-CLICK REMEDIATION
+        </div>
+        <h3 style="margin: 0 0 8px; font-size: 22px;">💊 1-Click "Prescribe & Cure All"</h3>
+        <p style="font-size: 14px; color: #334155; line-height: 1.5; margin: 0 0 16px;">
+          Don't know the math difference between median and mode? Just click <strong>"Cure All"</strong>. Dataset Doctor quarantines cheater columns, imputes missing values, and deduplicates records in mathematically validated canonical order.
+        </p>
+        <div style="background: #f8fafc; border: 2px dashed #000; padding: 12px; border-radius: 4px; font-size: 12px; font-family: monospace; color: #0f172a;">
+          ✓ 1-Click Auto-Remediation &bull; ✓ Download Clean CSV &bull; ✓ Export reproducible reproduce.py
+        </div>
+      </div>
+
+      <!-- Slide 4: Stress Lab -->
+      <div class="tour-slide" id="tourSlide4">
+        <div style="display: inline-block; background: #fee2e2; color: #b91c1c; font-weight: 900; font-size: 11px; padding: 3px 8px; border: 1.5px solid #000; margin-bottom: 8px;">
+          STEP 4 OF 4 • HARDENED STRESS LAB
+        </div>
+        <h3 style="margin: 0 0 8px; font-size: 22px;">💥 Production Crash & Drift Simulator</h3>
+        <p style="font-size: 14px; color: #334155; line-height: 1.5; margin: 0 0 16px;">
+          Never push blind again. Before going live, subject trained models to real-world production faults: <strong>Covariate Drift (+1.5σ)</strong>, <strong>Ingestion Outages (25% NaNs)</strong>, and <strong>Zero-Day Novel Categories</strong> to prove your pipeline's resilience advantage.
+        </p>
+        <div style="background: #f8fafc; border: 2px dashed #000; padding: 12px; border-radius: 4px; font-size: 12px; font-family: monospace; color: #0f172a;">
+          ✓ Survival Velocity Metrics &bull; ✓ Autopsy Diagnostic Notes &bull; ✓ Multi-Model Lift
+        </div>
+      </div>
+
+      <!-- Navigation & Dots -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 2px solid #e2e8f0; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="tour-dot active" onclick="goToTourSlide(1)" id="dot1"></span>
+          <span class="tour-dot" onclick="goToTourSlide(2)" id="dot2"></span>
+          <span class="tour-dot" onclick="goToTourSlide(3)" id="dot3"></span>
+          <span class="tour-dot" onclick="goToTourSlide(4)" id="dot4"></span>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn secondary sm" id="tourPrevBtn" onclick="prevTourSlide()" style="font-size: 12px; font-weight: 700; padding: 8px 14px;">
+            &larr; PREVIOUS
+          </button>
+          <button type="button" class="btn primary sm" id="tourNextBtn" onclick="nextTourSlide()" style="font-size: 12px; font-weight: 800; padding: 8px 16px; box-shadow: 2px 2px 0 #000;">
+            NEXT &rarr;
+          </button>
+          <a href="/sample/chaos" class="btn" id="tourTryBtn" style="display: none; background: #dc2626; color: #fff; font-size: 12px; font-weight: 900; padding: 8px 16px; text-decoration: none; border: 2px solid #000; box-shadow: 2px 2px 0 #000;">
+            ⚡ TRY WITH PATIENT ZERO &rarr;
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTourSlide = 1;
+    const totalTourSlides = 4;
+
+    function openTourModal() {
+      const modal = document.getElementById('tourModal');
+      if (modal) modal.style.display = 'flex';
+      goToTourSlide(1);
+    }
+
+    function closeTourModal() {
+      const modal = document.getElementById('tourModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function handleTourBackdrop(e) {
+      if (e.target && e.target.id === 'tourModal') {
+        closeTourModal();
+      }
+    }
+
+    function goToTourSlide(n) {
+      currentTourSlide = n;
+      for (let i = 1; i <= totalTourSlides; i++) {
+        const slide = document.getElementById('tourSlide' + i);
+        const dot = document.getElementById('dot' + i);
+        if (slide) slide.classList.remove('active');
+        if (dot) dot.classList.remove('active');
+      }
+      const activeSlide = document.getElementById('tourSlide' + n);
+      const activeDot = document.getElementById('dot' + n);
+      if (activeSlide) activeSlide.classList.add('active');
+      if (activeDot) activeDot.classList.add('active');
+
+      const prevBtn = document.getElementById('tourPrevBtn');
+      const nextBtn = document.getElementById('tourNextBtn');
+      const tryBtn = document.getElementById('tourTryBtn');
+
+      if (prevBtn) prevBtn.style.visibility = (n === 1) ? 'hidden' : 'visible';
+      if (n === totalTourSlides) {
+        if (nextBtn) nextBtn.style.display = 'none';
+        if (tryBtn) tryBtn.style.display = 'inline-flex';
+      } else {
+        if (nextBtn) nextBtn.style.display = 'inline-flex';
+        if (tryBtn) tryBtn.style.display = 'none';
+      }
+    }
+
+    function nextTourSlide() {
+      if (currentTourSlide < totalTourSlides) {
+        goToTourSlide(currentTourSlide + 1);
+      }
+    }
+
+    function prevTourSlide() {
+      if (currentTourSlide > 1) {
+        goToTourSlide(currentTourSlide - 1);
+      }
+    }
+  </script>
 </body>
 </html>
